@@ -1,0 +1,117 @@
+import { X } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import type { Task } from "../../../shared/types.ts";
+import { sendCancelTask, sendRequestTaskLogs } from "../../stores/commands.ts";
+import { TaskDetailDialog } from "./TaskDetailDialog.tsx";
+import { taskLabel } from "./utils.ts";
+
+export interface QueueCardProps {
+	tasks: Task[];
+	activeTask: Task | undefined;
+	projectId: string;
+	onAddTask: (projectId: string, prompt: string) => void;
+	className?: string;
+}
+
+export function QueueCard({ tasks, activeTask, projectId, onAddTask, className }: QueueCardProps) {
+	const [newPrompt, setNewPrompt] = useState("");
+	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+	function openDetail(task: Task) {
+		sendRequestTaskLogs(task.id);
+		setSelectedTask(task);
+	}
+
+	function handleAdd() {
+		const trimmed = newPrompt.trim();
+		if (!trimmed) return;
+		onAddTask(projectId, trimmed);
+		setNewPrompt("");
+	}
+
+	function handleKeyDown(e: React.KeyboardEvent) {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			handleAdd();
+		}
+	}
+
+	return (
+		<Card
+			className={`flex flex-col overflow-hidden h-80 shrink-0 lg:shrink lg:h-auto lg:flex-[0_1_40%] ${className ?? ""}`}
+		>
+			<CardHeader className="pb-2 shrink-0">
+				<CardTitle className="text-sm">Queue ({tasks.length})</CardTitle>
+			</CardHeader>
+			<CardContent className="flex-1 overflow-hidden flex flex-col gap-2 pb-3 min-h-0">
+				<ScrollArea className="flex-1 min-h-0">
+					{activeTask && (
+						<div className="flex items-center gap-2 mb-2 pb-2 border-b border-border">
+							<button
+								type="button"
+								className="text-sm truncate text-left flex-1 min-w-0 hover:underline cursor-pointer"
+								onClick={() => openDetail(activeTask)}
+							>
+								{taskLabel(activeTask)}
+							</button>
+							<Badge variant="default" className="text-xs shrink-0">
+								running
+							</Badge>
+						</div>
+					)}
+					{tasks.length === 0 && !activeTask ? (
+						<p className="text-xs text-muted-foreground">No tasks queued</p>
+					) : (
+						<ul className="space-y-1">
+							{tasks.map((task, i) => (
+								<li key={task.id} className="flex items-center gap-2">
+									<button
+										type="button"
+										className="text-sm truncate text-left flex-1 min-w-0 hover:underline cursor-pointer"
+										onClick={() => openDetail(task)}
+									>
+										<span className="text-muted-foreground mr-1">{i + 1}.</span>
+										{taskLabel(task)}
+									</button>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										className="size-6 text-muted-foreground hover:text-destructive shrink-0"
+										onClick={() => sendCancelTask(task.id)}
+									>
+										<X className="size-3.5" />
+									</Button>
+								</li>
+							))}
+						</ul>
+					)}
+				</ScrollArea>
+				{/* Inline add task */}
+				<div className="flex gap-2 shrink-0">
+					<Input
+						placeholder="Add a task..."
+						value={newPrompt}
+						onChange={(e) => setNewPrompt(e.target.value)}
+						onKeyDown={handleKeyDown}
+						className="h-8 text-sm"
+					/>
+					<Button size="sm" variant="outline" onClick={handleAdd} disabled={!newPrompt.trim()} className="shrink-0 h-8">
+						Add
+					</Button>
+				</div>
+			</CardContent>
+			<TaskDetailDialog
+				task={selectedTask}
+				open={selectedTask !== null}
+				onOpenChange={(open) => {
+					if (!open) setSelectedTask(null);
+				}}
+			/>
+		</Card>
+	);
+}
