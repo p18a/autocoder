@@ -12,6 +12,7 @@ import {
 	getJournalEntriesByTier,
 	getJournalEntryCount,
 	getOldestRecentEntries,
+	getOldestSummaryEntries,
 	removeJournalEntry,
 } from "../db/journal.ts";
 import { log } from "../logger.ts";
@@ -75,7 +76,7 @@ async function compressSummaryToHistorical(projectId: string): Promise<void> {
 	const summaryCount = getJournalEntryCount(projectId, "summary");
 	if (summaryCount < JOURNAL_SUMMARY_MAX) return;
 
-	const allSummaries = getJournalEntriesByTier(projectId, "summary", JOURNAL_ROLLUP_BATCH_SIZE);
+	const allSummaries = getOldestSummaryEntries(projectId, JOURNAL_ROLLUP_BATCH_SIZE);
 	if (allSummaries.length === 0) return;
 
 	log.info(
@@ -115,17 +116,34 @@ Write an updated historical context paragraph (or short paragraphs). Rules:
 	appendJournalEntry(projectId, historical, "historical");
 }
 
-/** Safety net: if total entries exceed hard cap, drop oldest recent entries. */
+/** Safety net: if total entries exceed hard cap, drop oldest entries (recent first, then summaries). */
 function enforceHardCap(projectId: string): void {
 	const total = getJournalEntryCount(projectId);
 	if (total <= JOURNAL_HARD_CAP) return;
 
-	const excess = total - JOURNAL_HARD_CAP;
-	const toRemove = getOldestRecentEntries(projectId, excess);
-	for (const entry of toRemove) {
+	let remaining = total - JOURNAL_HARD_CAP;
+	let removed = 0;
+
+	// Try removing recent entries first
+	const recentToRemove = getOldestRecentEntries(projectId, remaining);
+	for (const entry of recentToRemove) {
 		removeJournalEntry(entry.id);
+		removed++;
 	}
-	log.warn("orchestrator", `Journal hard cap: removed ${toRemove.length} oldest entries for project ${projectId}`);
+	remaining -= recentToRemove.length;
+
+	// If still over cap, remove oldest summaries
+	if (remaining > 0) {
+		const summariesToRemove = getOldestSummaryEntries(projectId, remaining);
+		for (const entry of summariesToRemove) {
+			removeJournalEntry(entry.id);
+			removed++;
+		}
+	}
+
+	if (removed > 0) {
+		log.warn("orchestrator", `Journal hard cap: removed ${removed} oldest entries for project ${projectId}`);
+	}
 }
 
 /** Call Claude CLI with a compression prompt and return the output text. */

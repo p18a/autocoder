@@ -7,6 +7,7 @@ import {
 	getJournalEntriesByTier,
 	getJournalEntryCount,
 	getOldestRecentEntries,
+	getOldestSummaryEntries,
 	removeJournalEntry,
 	searchJournalEntries,
 } from "./journal.ts";
@@ -101,6 +102,19 @@ describe("journal DB", () => {
 
 		const countAfter = getJournalEntryCount(projectId);
 		expect(countAfter).toBe(countBefore - 1);
+	});
+
+	test("gets oldest summary entries in ascending order", () => {
+		appendJournalEntry(projectId, "Summary oldest", "summary");
+		appendJournalEntry(projectId, "Summary newest", "summary");
+
+		const oldest = getOldestSummaryEntries(projectId, 2);
+		expect(oldest.length).toBe(2);
+		const first = oldest[0];
+		const second = oldest[1];
+		if (!first || !second) throw new Error("Expected 2 entries");
+		expect(first.createdAt <= second.createdAt).toBe(true);
+		expect(oldest.every((e) => e.tier === "summary")).toBe(true);
 	});
 
 	test("clears entries by tier", () => {

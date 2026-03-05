@@ -69,9 +69,9 @@ export function startProject(
 		const queued = deps.db.getQueuedTasksByProject(projectId);
 		const running = deps.db.getRunningTasksByProject(projectId);
 		if (queued.length === 0 && running.length === 0) {
-			const mode = deps.db.getProjectConfig(projectId, "discovery_mode");
+			const discoveryMode = deps.db.getProjectConfig(projectId, "discovery_mode");
 			const prompt =
-				mode === "autopilot" ? buildAutopilotPrompt(projectId, deps) : buildDiscoveryPrompt(projectId, deps);
+				discoveryMode === "autopilot" ? buildAutopilotPrompt(projectId, deps) : buildDiscoveryPrompt(projectId, deps);
 			const task = deps.db.createTask(projectId, prompt, "discovery");
 			log.info("orchestrator", `Created discovery task ${task.id} for project ${projectId}`);
 			deps.broadcast({ type: "task_added", task });

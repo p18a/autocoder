@@ -4,9 +4,6 @@
 /** How long a single task execution may run before being killed (10 min). */
 export const TASK_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** Timeout for the Phase-2 structured-extraction Claude call. */
-export const EXTRACTION_TIMEOUT_MS = 60_000;
-
 /** Consecutive discovery failures before auto-continue pauses the project. */
 export const MAX_DISCOVERY_FAILS = 3;
 

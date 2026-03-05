@@ -6,6 +6,7 @@ import { journalTierSchema, taskStatusSchema } from "../shared/schema.ts";
 
 // Import DB schema to run table creation/migrations, then DB functions
 import "../server/db/schema.ts";
+import { MAX_AUTOPILOT_ISSUES, MAX_DISCOVERY_ISSUES } from "../server/constants.ts";
 import {
 	appendJournalEntry,
 	getJournalEntries,
@@ -13,7 +14,22 @@ import {
 	searchJournalEntries,
 } from "../server/db/journal.ts";
 import { getProject, listProjects } from "../server/db/projects.ts";
-import { createTask, getTask, listTasks, updateTask } from "../server/db/tasks.ts";
+import {
+	createTask,
+	getQueuedTasksByProject,
+	getRunningTasksByProject,
+	getTask,
+	listTasks,
+	updateTask,
+} from "../server/db/tasks.ts";
+import type { ServerMessage } from "../shared/types.ts";
+
+/** Optional broadcast hook — set by the main server to push real-time updates to WS clients. */
+let broadcastHook: ((msg: ServerMessage) => void) | null = null;
+
+export function setBroadcastHook(fn: (msg: ServerMessage) => void) {
+	broadcastHook = fn;
+}
 
 const server = new McpServer({
 	name: "autocoder",
@@ -29,12 +45,24 @@ server.tool("list_projects", "List all projects", {}, async () => {
 
 server.tool(
 	"add_task",
-	"Add a task to a project's queue",
+	"Add an execution task to a project's queue. Discovery agents should call this for each issue they find. Tasks are automatically deduplicated against existing queued/running tasks.",
 	{
 		projectId: z.string().describe("Project ID"),
-		prompt: z.string().max(50_000).describe("What the agent should accomplish"),
+		title: z.string().min(1).max(200).describe("Short title for the task (under 80 chars preferred)"),
+		prompt: z
+			.string()
+			.min(1)
+			.max(50_000)
+			.describe(
+				"Actionable prompt with file paths, current vs. expected behavior, and implementation guidance — detailed enough for an autonomous agent to complete without asking questions",
+			),
+		originTaskId: z.string().optional().describe("ID of the discovery task that found this issue (for traceability)"),
+		mode: z
+			.enum(["janitor", "autopilot"])
+			.optional()
+			.describe("Discovery mode — controls max tasks cap (default: janitor)"),
 	},
-	async ({ projectId, prompt }) => {
+	async ({ projectId, title, prompt, originTaskId, mode }) => {
 		const project = getProject(projectId);
 		if (!project) {
 			return {
@@ -43,9 +71,37 @@ server.tool(
 			};
 		}
 
-		const task = createTask(projectId, prompt);
+		// Enforce per-cycle cap
+		const maxIssues = mode === "autopilot" ? MAX_AUTOPILOT_ISSUES : MAX_DISCOVERY_ISSUES;
+		const existing = [...getQueuedTasksByProject(projectId), ...getRunningTasksByProject(projectId)];
+		// Count only tasks from the same origin (same discovery cycle)
+		const fromSameOrigin = originTaskId
+			? existing.filter((t) => t.originTaskId === originTaskId).length
+			: existing.length;
+		if (fromSameOrigin >= maxIssues) {
+			return {
+				content: [
+					{
+						type: "text",
+						text: `Task cap reached (${maxIssues} per discovery cycle). Skipping: ${title}`,
+					},
+				],
+			};
+		}
+
+		// Deduplicate against queued/running tasks by prompt similarity
+		const promptKey = prompt.trim().toLowerCase();
+		const isDuplicate = existing.some((t) => t.prompt.trim().toLowerCase() === promptKey);
+		if (isDuplicate) {
+			return {
+				content: [{ type: "text", text: `Duplicate task skipped: ${title}` }],
+			};
+		}
+
+		const task = createTask(projectId, prompt, "execution", originTaskId ?? null, title);
+		broadcastHook?.({ type: "task_added", task });
 		return {
-			content: [{ type: "text", text: JSON.stringify(task, null, 2) }],
+			content: [{ type: "text", text: `Task created: ${task.id} — ${title}` }],
 		};
 	},
 );

@@ -2,13 +2,7 @@ import { AUTO_CONTINUE_DELAY_MS, MAX_DISCOVERY_FAILS } from "../constants.ts";
 import { gitAutoCommit, gitHasChanges, gitRevertToCheckpoint, gitSaveCheckpoint } from "../git.ts";
 import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
-import {
-	buildAutopilotPrompt,
-	buildDiscoveryPrompt,
-	enqueueDiscoveryIssues,
-	extractDiscoveryWithClaude,
-	postProcessDiscovery,
-} from "./discovery.ts";
+import { buildAutopilotPrompt, buildDiscoveryPrompt, countTasksFromDiscovery } from "./discovery.ts";
 import { compressJournalIfNeeded } from "./journal.ts";
 import { executeTask, parseCommitSummary, runVerifyCommand } from "./process.ts";
 
@@ -196,9 +190,13 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 						}
 					}
 
+					// For discovery tasks, the prompt contains {{TASK_ID}} placeholders
+					// that need to be interpolated now that we have the task ID.
+					const effectivePrompt = discovery ? task.prompt.replaceAll("{{TASK_ID}}", task.id) : task.prompt;
+
 					const resultText = await executeTask(
 						task.id,
-						task.prompt,
+						effectivePrompt,
 						task.projectId,
 						deps,
 						task.taskType,
@@ -214,10 +212,12 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 					}
 
 					if (discovery) {
-						const issues = resultText ? postProcessDiscovery(task.id, task.projectId, resultText, deps) : null;
+						// Discovery agents create tasks via the add_task MCP tool during execution.
+						// Count how many tasks were created by this discovery cycle.
+						const createdCount = countTasksFromDiscovery(task.id, task.projectId, deps);
 
 						if (!resultText) {
-							// No output at all — genuine failure
+							// No output at all — genuine failure (process likely crashed)
 							const warnLog = deps.db.appendTaskLog(task.id, "Discovery produced no output", "stderr");
 							deps.broadcast({ type: "task_log", log: warnLog });
 							const streak = Number(deps.db.getProjectConfig(task.projectId, "discovery_fail_streak") ?? "0");
@@ -227,32 +227,20 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 							continue;
 						}
 
-						if (!issues) {
-							// Had output but couldn't parse it — try Phase 2 extraction
-							const extracted = await extractDiscoveryWithClaude(task.id, task.projectId, resultText, deps);
-							if (extracted && extracted.length > 0) {
-								enqueueDiscoveryIssues(task.id, task.projectId, extracted, deps);
-								deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", "0");
-							} else {
-								const warnLog = deps.db.appendTaskLog(
-									task.id,
-									"Failed to parse discovery output into tasks (both markdown and structured extraction failed)",
-									"stderr",
-								);
-								deps.broadcast({ type: "task_log", log: warnLog });
-								const streak = Number(deps.db.getProjectConfig(task.projectId, "discovery_fail_streak") ?? "0");
-								deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", String(streak + 1));
-								const failed = deps.db.updateTask(task.id, "failed");
-								if (failed) deps.broadcast({ type: "task_updated", task: failed });
-								continue;
-							}
-						} else if (issues.length === 0) {
-							// Parsed successfully but found zero issues — valid outcome, not a failure
-							const infoLog = deps.db.appendTaskLog(task.id, "Discovery completed: no issues found", "system");
+						if (createdCount > 0) {
+							const infoLog = deps.db.appendTaskLog(
+								task.id,
+								`Discovery completed: ${createdCount} task(s) created via MCP`,
+								"system",
+							);
 							deps.broadcast({ type: "task_log", log: infoLog });
 							deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", "0");
 						} else {
-							enqueueDiscoveryIssues(task.id, task.projectId, issues, deps);
+							// Agent finished but created no tasks — could be legitimate (no issues found)
+							// or a failure (MCP connection issue, agent didn't use the tool)
+							const infoLog = deps.db.appendTaskLog(task.id, "Discovery completed: no tasks were created", "system");
+							deps.broadcast({ type: "task_log", log: infoLog });
+							// Don't increment fail streak — agent ran successfully, just found nothing
 							deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", "0");
 						}
 					} else if (verifyCommand && project) {

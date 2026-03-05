@@ -11,6 +11,7 @@ export {
 	getJournalEntriesByTier,
 	getJournalEntryCount,
 	getOldestRecentEntries,
+	getOldestSummaryEntries,
 	removeJournalEntry,
 	searchJournalEntries,
 } from "./journal.ts";

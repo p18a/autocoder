@@ -63,14 +63,6 @@ export const serverLogSchema = z.object({
 	createdAt: z.string(),
 });
 
-// Discovery result schemas
-export const discoveryIssueSchema = z.object({
-	title: z.string().min(1),
-	prompt: z.string().min(1),
-});
-
-export const discoveryResultSchema = z.array(discoveryIssueSchema);
-
 /**
  * Validates that a path looks like an absolute path and contains no traversal segments.
  * Runtime checks (existence, is-directory) happen in the ws handler.

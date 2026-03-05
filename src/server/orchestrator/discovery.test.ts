@@ -1,14 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { Config, Project, ServerMessage, Task, TaskLog, TaskStatus, TaskType } from "../../shared/types.ts";
+import type { Config, Project, Task, TaskLog, TaskStatus, TaskType } from "../../shared/types.ts";
 import type { OrchestratorDeps } from "./deps.ts";
-import {
-	buildDiscoveryPrompt,
-	dedupeIssues,
-	enqueueDiscoveryIssues,
-	parseDiscoveryMarkdown,
-	parseDiscoveryResult,
-	postProcessDiscovery,
-} from "./discovery.ts";
+import { buildAutopilotPrompt, buildDiscoveryPrompt, countTasksFromDiscovery } from "./discovery.ts";
 
 function createMockDeps(overrides?: Partial<OrchestratorDeps["db"]>): OrchestratorDeps {
 	let taskIdCounter = 0;
@@ -48,155 +41,15 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps["db"]>): Orchestrat
 	};
 }
 
-describe("parseDiscoveryResult", () => {
-	test("parses valid JSON array", () => {
-		const json = JSON.stringify([
-			{ title: "Bug 1", prompt: "Fix bug 1" },
-			{ title: "Bug 2", prompt: "Fix bug 2" },
-		]);
-		const result = parseDiscoveryResult(json);
-		expect(result).toEqual([
-			{ title: "Bug 1", prompt: "Fix bug 1" },
-			{ title: "Bug 2", prompt: "Fix bug 2" },
-		]);
-	});
-
-	test("returns null for invalid JSON", () => {
-		expect(parseDiscoveryResult("not json")).toBeNull();
-	});
-
-	test("returns null for wrong schema", () => {
-		expect(parseDiscoveryResult(JSON.stringify({ not: "an array" }))).toBeNull();
-		expect(parseDiscoveryResult(JSON.stringify([{ title: "No prompt" }]))).toBeNull();
-	});
-
-	test("returns null for empty strings", () => {
-		expect(parseDiscoveryResult(JSON.stringify([{ title: "", prompt: "" }]))).toBeNull();
-	});
-});
-
-describe("parseDiscoveryMarkdown", () => {
-	test("parses standard # headings with --- separators", () => {
-		const text = `# Missing null check
-In src/foo.ts, add a null check on line 42.
----
-# SQL injection
-In src/bar.ts, use parameterized queries.`;
-		const issues = parseDiscoveryMarkdown(text);
-		expect(issues).toHaveLength(2);
-		expect(issues[0]?.title).toBe("Missing null check");
-		expect(issues[0]?.prompt).toContain("null check");
-		expect(issues[1]?.title).toBe("SQL injection");
-	});
-
-	test("handles ## and ### headings", () => {
-		const text = `## Missing null check
-Fix the null check.
----
-### SQL injection
-Fix the injection.`;
-		const issues = parseDiscoveryMarkdown(text);
-		expect(issues).toHaveLength(2);
-		expect(issues[0]?.title).toBe("Missing null check");
-		expect(issues[1]?.title).toBe("SQL injection");
-	});
-
-	test("handles *** and ___ separators", () => {
-		const text = `# Issue A
-Fix A.
-***
-# Issue B
-Fix B.
-___
-# Issue C
-Fix C.`;
-		const issues = parseDiscoveryMarkdown(text);
-		expect(issues).toHaveLength(3);
-	});
-
-	test("tolerates preamble text before first heading", () => {
-		const text = `Here are the issues I found:
-
-# Missing null check
-Fix it.
----
-# SQL injection
-Fix that too.`;
-		const issues = parseDiscoveryMarkdown(text);
-		expect(issues).toHaveLength(2);
-	});
-
-	test("skips sections without headings", () => {
-		const text = `Just some random text
----
-# Real issue
-Fix this.`;
-		const issues = parseDiscoveryMarkdown(text);
-		expect(issues).toHaveLength(1);
-		expect(issues[0]?.title).toBe("Real issue");
-	});
-
-	test("skips headings without prompt body", () => {
-		const text = "# Heading only";
-		const issues = parseDiscoveryMarkdown(text);
-		expect(issues).toHaveLength(0);
-	});
-
-	test("returns empty array for empty input", () => {
-		expect(parseDiscoveryMarkdown("")).toHaveLength(0);
-		expect(parseDiscoveryMarkdown("no headings here")).toHaveLength(0);
-	});
-
-	test("handles extended --- separators", () => {
-		const text = `# Issue A
-Fix A.
-------
-# Issue B
-Fix B.`;
-		const issues = parseDiscoveryMarkdown(text);
-		expect(issues).toHaveLength(2);
-	});
-});
-
-describe("dedupeIssues", () => {
-	test("dedupes within batch", () => {
-		const issues = [
-			{ title: "A", prompt: "Fix A" },
-			{ title: "A", prompt: "Fix A " },
-			{ title: "A", prompt: " FIX A" },
-			{ title: "B", prompt: "Fix B" },
-		];
-		const deduped = dedupeIssues(issues, []);
-		expect(deduped.length).toBe(2);
-		expect(deduped[0]?.prompt).toBe("Fix A");
-		expect(deduped[1]?.prompt).toBe("Fix B");
-	});
-
-	test("dedupes against existing tasks", () => {
-		const issues = [
-			{ title: "A", prompt: "Fix A" },
-			{ title: "B", prompt: "Fix B" },
-		];
-		const existing = [{ prompt: " fix a " }];
-		const deduped = dedupeIssues(issues, existing);
-		expect(deduped.length).toBe(1);
-		expect(deduped[0]?.prompt).toBe("Fix B");
-	});
-
-	test("case insensitive and whitespace trimmed", () => {
-		const issues = [{ title: "A", prompt: "  Fix  " }];
-		const existing = [{ prompt: "fix" }];
-		const deduped = dedupeIssues(issues, existing);
-		expect(deduped.length).toBe(0);
-	});
-});
-
 describe("buildDiscoveryPrompt", () => {
-	test("returns base prompt when no custom instructions set", () => {
+	test("returns base prompt with MCP add_task instructions", () => {
 		const deps = createMockDeps();
 		const result = buildDiscoveryPrompt("p1", deps);
 		expect(result).toContain("autonomous code reviewer");
-		expect(result).not.toContain("Additional focus areas");
+		expect(result).toContain("add_task");
+		expect(result).toContain("p1"); // PROJECT_ID interpolated
+		expect(result).toContain("janitor"); // DISCOVERY_MODE interpolated
+		expect(result).toContain("{{TASK_ID}}"); // Left as placeholder for queue to fill
 	});
 
 	test("appends custom instructions when set", () => {
@@ -211,79 +64,57 @@ describe("buildDiscoveryPrompt", () => {
 	});
 });
 
-describe("enqueueDiscoveryIssues", () => {
-	test("creates execution tasks and broadcasts task_added for each", () => {
-		const deps = createMockDeps();
-		const issues = [
-			{ title: "Bug A", prompt: "Fix A" },
-			{ title: "Bug B", prompt: "Fix B" },
-		];
-
-		enqueueDiscoveryIssues("disc1", "p1", issues, deps);
-
-		expect(deps.db.createTask).toHaveBeenCalledTimes(2);
-		const broadcasts = (deps.broadcast as ReturnType<typeof mock>).mock.calls
-			.map((c) => (c[0] as ServerMessage).type)
-			.filter((t) => t === "task_added");
-		expect(broadcasts).toHaveLength(2);
-	});
-
-	test("deduplicates against existing queued tasks", () => {
+describe("buildAutopilotPrompt", () => {
+	test("returns autopilot prompt with project goals and MCP instructions", () => {
 		const deps = createMockDeps({
-			getQueuedTasksByProject: mock(() => [{ prompt: "Fix A" } as Task]),
+			getProjectConfig: mock((_pid: string, key: string) => (key === "project_purpose" ? "Build a todo app" : null)),
 		});
-		const issues = [
-			{ title: "Bug A", prompt: "Fix A" },
-			{ title: "Bug B", prompt: "Fix B" },
-		];
-
-		enqueueDiscoveryIssues("disc1", "p1", issues, deps);
-
-		expect(deps.db.createTask).toHaveBeenCalledTimes(1);
-		const calls = (deps.db.createTask as ReturnType<typeof mock>).mock.calls;
-		expect(calls[0]?.[1]).toBe("Fix B");
+		const result = buildAutopilotPrompt("p1", deps);
+		expect(result).toContain("autonomous product developer");
+		expect(result).toContain("Build a todo app");
+		expect(result).toContain("add_task");
+		expect(result).toContain("autopilot"); // DISCOVERY_MODE interpolated
 	});
 
-	test("caps issues to MAX_DISCOVERY_ISSUES and logs cap message", () => {
+	test("falls back to janitor when no project purpose set", () => {
 		const deps = createMockDeps();
-		// Create 25 issues (exceeds MAX_DISCOVERY_ISSUES = 20)
-		const issues = Array.from({ length: 25 }, (_, i) => ({
-			title: `Bug ${i}`,
-			prompt: `Fix bug ${i}`,
-		}));
+		const result = buildAutopilotPrompt("p1", deps);
+		expect(result).toContain("autonomous code reviewer"); // Janitor prompt
+		expect(result).toContain("janitor");
+	});
 
-		enqueueDiscoveryIssues("disc1", "p1", issues, deps);
-
-		expect(deps.db.createTask).toHaveBeenCalledTimes(20);
-		// Should have a system log about capping
-		expect(deps.db.appendTaskLog).toHaveBeenCalledWith("disc1", expect.stringContaining("capped to"), "system");
+	test("includes custom instructions alongside project goals", () => {
+		const deps = createMockDeps({
+			getProjectConfig: mock((_pid: string, key: string) => {
+				if (key === "project_purpose") return "Build a todo app";
+				if (key === "custom_instructions") return "Use React";
+				return null;
+			}),
+		});
+		const result = buildAutopilotPrompt("p1", deps);
+		expect(result).toContain("Build a todo app");
+		expect(result).toContain("Use React");
 	});
 });
 
-describe("postProcessDiscovery", () => {
-	test("extracts issues from markdown and broadcasts progress logs", () => {
-		const deps = createMockDeps();
-		const markdown = `# Missing null check
-Fix the null check in foo.ts.
----
-# SQL injection
-Use parameterized queries in bar.ts.`;
+describe("countTasksFromDiscovery", () => {
+	test("counts tasks with matching originTaskId", () => {
+		const deps = createMockDeps({
+			listTasks: mock(() => [
+				{ id: "t1", originTaskId: "disc1", projectId: "p1" } as Task,
+				{ id: "t2", originTaskId: "disc1", projectId: "p1" } as Task,
+				{ id: "t3", originTaskId: "disc2", projectId: "p1" } as Task,
+				{ id: "t4", originTaskId: null, projectId: "p1" } as Task,
+			]),
+		});
 
-		const result = postProcessDiscovery("t1", "p1", markdown, deps);
-
-		expect(result).toHaveLength(2);
-		expect(result?.[0]?.title).toBe("Missing null check");
-
-		// Should have broadcast post-processing log and extraction count log
-		const logCalls = (deps.db.appendTaskLog as ReturnType<typeof mock>).mock.calls;
-		expect(logCalls.some((c) => (c[1] as string).includes("Post-processing"))).toBe(true);
-		expect(logCalls.some((c) => (c[1] as string).includes("Extracted 2"))).toBe(true);
+		expect(countTasksFromDiscovery("disc1", "p1", deps)).toBe(2);
+		expect(countTasksFromDiscovery("disc2", "p1", deps)).toBe(1);
+		expect(countTasksFromDiscovery("disc3", "p1", deps)).toBe(0);
 	});
 
-	test("returns null when no issues found in text", () => {
+	test("returns 0 when no tasks exist", () => {
 		const deps = createMockDeps();
-		const result = postProcessDiscovery("t1", "p1", "Just some plain text", deps);
-
-		expect(result).toBeNull();
+		expect(countTasksFromDiscovery("disc1", "p1", deps)).toBe(0);
 	});
 });

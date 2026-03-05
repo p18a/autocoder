@@ -39,6 +39,11 @@ const selectOldestRecentEntries = db
 		`SELECT ${JOURNAL_COLS} FROM journal_entries WHERE project_id = ? AND tier = 'recent' ORDER BY created_at ASC LIMIT ?`,
 	)
 	.as(JournalEntryRow);
+const selectOldestSummaryEntries = db
+	.prepare(
+		`SELECT ${JOURNAL_COLS} FROM journal_entries WHERE project_id = ? AND tier = 'summary' ORDER BY created_at ASC LIMIT ?`,
+	)
+	.as(JournalEntryRow);
 const deleteEntry = db.prepare("DELETE FROM journal_entries WHERE id = ?");
 const deleteByProjectAndTier = db.prepare("DELETE FROM journal_entries WHERE project_id = ? AND tier = ?");
 
@@ -76,6 +81,10 @@ export function getJournalEntryCount(projectId: string, tier?: JournalTier): num
 
 export function getOldestRecentEntries(projectId: string, limit: number): JournalEntry[] {
 	return selectOldestRecentEntries.all(projectId, limit);
+}
+
+export function getOldestSummaryEntries(projectId: string, limit: number): JournalEntry[] {
+	return selectOldestSummaryEntries.all(projectId, limit);
 }
 
 export function removeJournalEntry(id: string): boolean {

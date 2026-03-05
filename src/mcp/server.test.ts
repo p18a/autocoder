@@ -56,17 +56,48 @@ describe("MCP Server", () => {
 		db.deleteProjectCascade(project.id);
 	});
 
-	test("add_task creates a queued task", async () => {
+	test("add_task creates a queued execution task with title and origin", async () => {
 		const project = db.createProject("MCP Task Test", "/tmp/mcp-task-test");
 
 		const result = await client.callTool({
 			name: "add_task",
-			arguments: { projectId: project.id, prompt: "Fix the bug" },
+			arguments: {
+				projectId: project.id,
+				title: "Fix null check",
+				prompt: "Fix the null check in foo.ts",
+				originTaskId: "disc-123",
+			},
 		});
-		const task = JSON.parse(getTextContent(result));
-		expect(task.projectId).toBe(project.id);
-		expect(task.prompt).toBe("Fix the bug");
-		expect(task.status).toBe("queued");
+		expect(result.isError).toBeFalsy();
+		const text = getTextContent(result);
+		expect(text).toContain("Task created");
+		expect(text).toContain("Fix null check");
+
+		// Verify task was actually created in DB
+		const tasks = db.listTasks(project.id);
+		const created = tasks.find((t) => t.title === "Fix null check");
+		expect(created).toBeTruthy();
+		expect(created?.taskType).toBe("execution");
+		expect(created?.originTaskId).toBe("disc-123");
+		expect(created?.prompt).toBe("Fix the null check in foo.ts");
+
+		db.deleteProjectCascade(project.id);
+	});
+
+	test("add_task deduplicates against existing tasks", async () => {
+		const project = db.createProject("MCP Dedup Test", "/tmp/mcp-dedup-test");
+		db.createTask(project.id, "Fix the bug in foo.ts");
+
+		const result = await client.callTool({
+			name: "add_task",
+			arguments: {
+				projectId: project.id,
+				title: "Fix foo",
+				prompt: "Fix the bug in foo.ts",
+			},
+		});
+		expect(result.isError).toBeFalsy();
+		expect(getTextContent(result)).toContain("Duplicate task skipped");
 
 		db.deleteProjectCascade(project.id);
 	});
@@ -74,7 +105,7 @@ describe("MCP Server", () => {
 	test("add_task returns error for nonexistent project", async () => {
 		const result = await client.callTool({
 			name: "add_task",
-			arguments: { projectId: "nonexistent", prompt: "Fix the bug" },
+			arguments: { projectId: "nonexistent", title: "Fix it", prompt: "Fix the bug" },
 		});
 		expect(result.isError).toBe(true);
 		expect(getTextContent(result)).toContain("Project not found");

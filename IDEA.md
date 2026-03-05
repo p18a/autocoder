@@ -110,28 +110,37 @@ Messages are JSON with a `type` field:
 
 ### Agent Integration
 
-Agents are invoked via the **Claude CLI** (`claude -p --output-format stream-json --verbose --dangerously-skip-permissions`), spawned as subprocesses with `Bun.spawn`. This uses the user's subscription account directly — no API key needed.
+Agents are invoked via the **Claude CLI** (`claude -p --output-format stream-json --verbose --dangerously-skip-permissions --mcp-config <config>`), spawned as subprocesses with `Bun.spawn`. This uses the user's subscription account directly — no API key needed.
+
+Each spawned Claude process is configured with `--mcp-config` pointing to a generated JSON file that registers the autocoder MCP server. This gives agents access to project management and journal tools during execution.
 
 The streaming JSON output (JSONL) is parsed line-by-line:
 - `content_block_start` with text → logged as stdout
 - `content_block_start` with tool_use → logged as system message (tool name)
 - `result` / `subtype: "result"` → captured as final output
 
-**Discovery uses a two-phase approach:**
-1. **Phase 1 — Streaming discovery**: Runs with `--output-format stream-json` (no `--json-schema`), so the agent works naturally and its activity streams to the UI in real time, same as execution tasks.
-2. **Phase 2 — Post-processing**: After discovery completes, a second Claude call runs with `--output-format json --json-schema <schema>` to extract the free-form discovery output into a structured array of `{ title, prompt }` issues.
+**Discovery uses MCP-based task creation:**
+- Discovery agents analyze the codebase and call `add_task` via MCP for each issue found
+- The MCP `add_task` tool handles deduplication and per-cycle caps automatically
+- After discovery completes, the orchestrator counts how many tasks were created by that cycle
+- No post-processing or second Claude call needed — task creation happens during execution
 
 Process management uses a `Map<projectId, Subprocess>` so `stopProject()` can `.kill()` the running Claude process immediately.
 
 ### MCP Server
 
-Separate entry point (`src/mcp/server.ts`) — currently a stub skeleton.
+Separate entry point (`src/mcp/server.ts`) — runs both standalone (stdio) and as a subprocess spawned for each Claude agent.
 
-**Tools planned:**
+**Tools:**
 - `list_projects` — list all projects
-- `add_task` — add a task to a project's queue
-- `list_tasks` — list tasks for a project
+- `add_task` — create an execution task with title, prompt, origin tracking, dedup, and per-cycle caps
+- `list_tasks` — list tasks for a project (filterable by status)
 - `cancel_task` — cancel a queued or running task
+- `read_journal` — read journal entries across all tiers
+- `write_journal` — append a journal entry
+- `search_journal` — search journal by content
+
+The MCP server shares the same SQLite database as the main server. A broadcast hook is wired up so MCP tool calls (e.g. `add_task`) push real-time updates to WebSocket clients.
 
 ### Frontend (React + Zustand + shadcn)
 

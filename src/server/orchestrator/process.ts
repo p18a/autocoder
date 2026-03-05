@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Subprocess } from "bun";
 import type { TaskType } from "../../shared/types.ts";
 import { ALLOWED_ENV_KEYS, ALLOWED_TOOLS, TASK_TIMEOUT_MS } from "../constants.ts";
@@ -15,7 +17,7 @@ Guidelines:
 - Do not introduce new dependencies unless the task specifically requires it.
 
 Dev Journal:
-If you discover something important during this task that future tasks should know about, write it to the dev journal using the write_journal MCP tool. Good things to record:
+Use the write_journal MCP tool to record discoveries that future tasks should know about. Good things to record:
 - Abandoned approaches and why they didn't work
 - Architectural constraints or gotchas you discovered
 - Prerequisites or dependencies for follow-up work
@@ -153,6 +155,38 @@ ${resultText.slice(0, 5000)}`;
 	return match ? match[0].trim() : null;
 }
 
+/** Resolve path to the MCP server entrypoint. */
+function getMcpServerPath(): string {
+	// Use import.meta to resolve relative to this file → ../../mcp/server.ts
+	return join(import.meta.dir, "..", "..", "mcp", "server.ts");
+}
+
+let _mcpConfigPath: string | null = null;
+
+/** Get or create the MCP config JSON file for Claude subprocesses. */
+export function getMcpConfigPath(): string {
+	if (_mcpConfigPath) return _mcpConfigPath;
+
+	const tmpDir = process.env.TMPDIR ?? "/tmp";
+	const configPath = join(tmpDir, "autocoder-mcp-config.json");
+	const mcpServerPath = getMcpServerPath();
+
+	const config = {
+		mcpServers: {
+			autocoder: {
+				command: "bun",
+				args: [mcpServerPath],
+			},
+		},
+	};
+
+	// Synchronous write to ensure config exists before spawning Claude
+	writeFileSync(configPath, JSON.stringify(config, null, 2));
+	log.info("orchestrator", `MCP config written to ${configPath} (server: ${mcpServerPath})`);
+	_mcpConfigPath = configPath;
+	return configPath;
+}
+
 /** Build a minimal env for Claude subprocesses — only forward known-safe variables. */
 export function buildClaudeEnv(): Record<string, string | undefined> {
 	const env: Record<string, string | undefined> = {};
@@ -192,6 +226,8 @@ export async function executeTask(
 
 	const effectivePrompt = taskType === "execution" ? buildExecutionPrompt(prompt, verifyCommand) : prompt;
 
+	const mcpConfig = getMcpConfigPath();
+
 	const args = [
 		"claude",
 		"-p",
@@ -200,8 +236,11 @@ export async function executeTask(
 		"stream-json",
 		"--verbose",
 		"--dangerously-skip-permissions",
+		"--mcp-config",
+		mcpConfig,
 		"--allowedTools",
 		...ALLOWED_TOOLS,
+		"mcp__autocoder__*",
 	];
 
 	log.info("orchestrator", `Spawning Claude CLI for task ${taskId} in ${project.path}`, JSON.stringify(args));

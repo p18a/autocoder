@@ -23,7 +23,8 @@
       "Bash(wc:*)",
       "Bash(ls:*)",
       "Bash(tail:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(git add:*)"
     ]
   }
 }

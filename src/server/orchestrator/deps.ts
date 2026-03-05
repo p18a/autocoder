@@ -26,7 +26,15 @@ export interface OrchestratorDeps {
 
 export async function createDefaultDeps(): Promise<OrchestratorDeps> {
 	// Dynamic imports to avoid circular dependency (orchestrator → ws → handlers → orchestrator)
-	const [db, ws] = await Promise.all([import("../db/index.ts"), import("../ws.ts")]);
+	const [db, ws, mcp] = await Promise.all([
+		import("../db/index.ts"),
+		import("../ws.ts"),
+		import("../../mcp/server.ts"),
+	]);
+
+	// Wire up the MCP broadcast hook so MCP tool calls (e.g. add_task) push real-time updates to WS clients
+	mcp.setBroadcastHook(ws.broadcast);
+
 	return {
 		db: {
 			getProject: db.getProject,
