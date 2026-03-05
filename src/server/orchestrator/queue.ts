@@ -312,15 +312,25 @@ Original task: ${task.prompt}`;
 						await autoCommitTask(project.path, resultText, task.prompt, task.id, deps);
 					}
 
+					// Re-read task — it may have been cancelled/failed externally
+					const beforeComplete = deps.db.getTask(task.id);
+					if (beforeComplete?.status !== "running") {
+						log.info(
+							"orchestrator",
+							`Task ${task.id} already ${beforeComplete?.status ?? "gone"}, skipping completion`,
+						);
+						continue;
+					}
+
 					const completed = deps.db.updateTask(task.id, "completed");
 					if (completed) {
 						log.info("orchestrator", `Task ${task.id} → completed`);
 						deps.broadcast({ type: "task_updated", task: completed });
 					}
 				} catch (err) {
-					// Re-read task — if already cancelled by stopProject, don't mark failed
+					// Re-read task — if already cancelled/failed externally, don't mark failed
 					const afterExec = deps.db.getTask(task.id);
-					if (afterExec?.status === "cancelled") continue;
+					if (afterExec?.status !== "running") continue;
 
 					log.error("orchestrator", `Task ${task.id} failed: ${err instanceof Error ? err.message : String(err)}`);
 					const taskLog = deps.db.appendTaskLog(task.id, String(err), "stderr");

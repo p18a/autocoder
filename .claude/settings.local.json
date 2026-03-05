@@ -19,7 +19,11 @@
       "Bash(env:*)",
       "mcp__chrome-devtools__list_pages",
       "Bash(git stash:*)",
-      "Bash(script:*)"
+      "Bash(script:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(tail:*)",
+      "Bash(head:*)"
     ]
   }
 }

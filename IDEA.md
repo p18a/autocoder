@@ -184,7 +184,7 @@ Each execution task goes through a post-execution pipeline:
 - `discovery_mode` — `"janitor"` (default) or `"autopilot"`
 - `project_purpose` — Free-text description of what the project should become (autopilot mode)
 
-Git operations use `isomorphic-git` via `src/server/git.ts`.
+Git operations use native `git` CLI via `src/server/git.ts`.
 
 ### Discovery Modes
 

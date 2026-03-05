@@ -51,7 +51,7 @@ Search in `src/client/`, `src/components/ui/`, and `src/index.css`.
 
 - **Command injection**: user-provided `path` or `prompt` values reaching `Bun.spawn` or shell execution unsanitized
 - **Path traversal**: project `path` validation — can a user point to `/etc` or `~/.ssh`? Directory existence checks?
-- **Git operations**: `isomorphic-git` error handling, hard reset safety (uncommitted work lost), checkpoint/revert atomicity, commit message injection
+- **Git operations**: native git CLI error handling, hard reset safety (uncommitted work lost), checkpoint/revert atomicity, commit message injection
 - **Subprocess security**: `--dangerously-skip-permissions` flag implications, Claude CLI spawned with full filesystem access
 - **SQLite safety**: SQL injection via string interpolation (vs parameterized queries), DB file permissions, WAL mode locking
 - **MCP server**: authentication/authorization on MCP tools, input validation, access control for task creation

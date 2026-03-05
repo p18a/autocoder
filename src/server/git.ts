@@ -1,6 +1,19 @@
-import * as fs from "node:fs";
-import git from "isomorphic-git";
 import { log } from "./logger.ts";
+
+/** Run a git command in the given directory and return trimmed stdout. Throws on non-zero exit. */
+async function run(projectPath: string, args: string[]): Promise<string> {
+	const proc = Bun.spawn(["git", ...args], {
+		cwd: projectPath,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+	const exitCode = await proc.exited;
+	if (exitCode !== 0) {
+		throw new Error(`git ${args[0]} failed (exit ${exitCode}): ${stderr.trim()}`);
+	}
+	return stdout.trim();
+}
 
 /**
  * Stage all changes and create a commit.
@@ -9,23 +22,9 @@ import { log } from "./logger.ts";
 export async function gitAutoCommit(projectPath: string, message: string): Promise<string | null> {
 	if (!(await gitHasChanges(projectPath))) return null;
 
-	await git.add({ fs, dir: projectPath, filepath: "." });
-
-	// Also stage deletions — isomorphic-git's `add(".")` doesn't handle removes
-	const status = await git.statusMatrix({ fs, dir: projectPath });
-	for (const [filepath, head, workdir] of status) {
-		// head=1 workdir=0 means file was deleted
-		if (head === 1 && workdir === 0) {
-			await git.remove({ fs, dir: projectPath, filepath });
-		}
-	}
-
-	const sha = await git.commit({
-		fs,
-		dir: projectPath,
-		message,
-		author: { name: "Autocoder", email: "autocoder@localhost" },
-	});
+	await run(projectPath, ["add", "-A"]);
+	await run(projectPath, ["commit", "-m", message, "--author", "Autocoder <autocoder@localhost>"]);
+	const sha = await run(projectPath, ["rev-parse", "HEAD"]);
 
 	log.info("git", `Committed ${sha.slice(0, 8)} in ${projectPath}: ${message}`);
 	return sha;
@@ -36,7 +35,7 @@ export async function gitAutoCommit(projectPath: string, message: string): Promi
  * Returns the current HEAD SHA.
  */
 export async function gitSaveCheckpoint(projectPath: string): Promise<string> {
-	const head = await git.resolveRef({ fs, dir: projectPath, ref: "HEAD" });
+	const head = await run(projectPath, ["rev-parse", "HEAD"]);
 	log.info("git", `Checkpoint saved: ${head.slice(0, 8)} in ${projectPath}`);
 	return head;
 }
@@ -46,28 +45,7 @@ export async function gitSaveCheckpoint(projectPath: string): Promise<string> {
  * Performs a hard reset: moves HEAD and restores the working tree.
  */
 export async function gitRevertToCheckpoint(projectPath: string, checkpointSha: string): Promise<void> {
-	// Checkout the tree to restore working directory
-	await git.checkout({
-		fs,
-		dir: projectPath,
-		ref: checkpointSha,
-		force: true,
-	});
-
-	// Move the branch ref back to the checkpoint
-	const branch = await git.currentBranch({ fs, dir: projectPath });
-	if (branch) {
-		await git.writeRef({
-			fs,
-			dir: projectPath,
-			ref: `refs/heads/${branch}`,
-			value: checkpointSha,
-			force: true,
-		});
-		// Point HEAD at the branch
-		await git.checkout({ fs, dir: projectPath, ref: branch, force: true });
-	}
-
+	await run(projectPath, ["reset", "--hard", checkpointSha]);
 	log.info("git", `Reverted to checkpoint ${checkpointSha.slice(0, 8)} in ${projectPath}`);
 }
 
@@ -75,8 +53,12 @@ export async function gitRevertToCheckpoint(projectPath: string, checkpointSha: 
  * Check whether the working tree has uncommitted changes.
  */
 export async function gitHasChanges(projectPath: string): Promise<boolean> {
-	const status = await git.statusMatrix({ fs, dir: projectPath });
-	// Each row: [filepath, head, workdir, stage]
-	// Clean file: [f, 1, 1, 1]. Anything else means changes.
-	return status.some(([, head, workdir, stage]) => !(head === 1 && workdir === 1 && stage === 1));
+	const proc = Bun.spawn(["git", "status", "--porcelain"], {
+		cwd: projectPath,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	const output = await new Response(proc.stdout).text();
+	await proc.exited;
+	return output.trim().length > 0;
 }

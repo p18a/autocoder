@@ -1,22 +1,25 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import git from "isomorphic-git";
 import { gitAutoCommit, gitHasChanges, gitRevertToCheckpoint, gitSaveCheckpoint } from "./git.ts";
+
+/** Run a git command in a directory and return stdout. */
+async function gitCmd(dir: string, args: string[]): Promise<string> {
+	const proc = Bun.spawn(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" });
+	const stdout = await new Response(proc.stdout).text();
+	await proc.exited;
+	return stdout.trim();
+}
 
 /** Create a temp git repo with an initial commit. */
 async function createTempRepo(): Promise<string> {
 	const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "git-test-"));
-	await git.init({ fs, dir });
-	// Create an initial file and commit so HEAD exists
+	await gitCmd(dir, ["init"]);
+	await gitCmd(dir, ["config", "user.name", "Test"]);
+	await gitCmd(dir, ["config", "user.email", "test@test"]);
 	fs.writeFileSync(path.join(dir, "readme.txt"), "initial");
-	await git.add({ fs, dir, filepath: "readme.txt" });
-	await git.commit({
-		fs,
-		dir,
-		message: "initial commit",
-		author: { name: "Test", email: "test@test" },
-	});
+	await gitCmd(dir, ["add", "."]);
+	await gitCmd(dir, ["commit", "-m", "initial commit"]);
 	return dir;
 }
 
@@ -67,10 +70,9 @@ describe("gitAutoCommit", () => {
 		expect(sha).toBeString();
 		expect(sha).toHaveLength(40);
 
-		// Verify the commit exists
-		if (!sha) throw new Error("Expected SHA");
-		const commitObj = await git.readCommit({ fs, dir, oid: sha });
-		expect(commitObj.commit.message).toBe("feat(test): add file\n");
+		// Verify the commit message
+		const msg = await gitCmd(dir, ["log", "-1", "--format=%s"]);
+		expect(msg).toBe("feat(test): add file");
 	});
 
 	test("returns null on a clean tree", async () => {
