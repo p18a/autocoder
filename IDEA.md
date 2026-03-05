@@ -160,9 +160,34 @@ src/
   components/ui/  — shadcn components
 ```
 
+### Verification & Auto-Commit
+
+Each execution task goes through a post-execution pipeline:
+
+1. **Git checkpoint** — Before execution, the orchestrator saves the current HEAD SHA as a checkpoint for potential revert.
+
+2. **Task execution** — Claude runs with the task prompt. The prompt is augmented with a conventional commit footer instruction, so Claude includes a `type(scope): description` summary.
+
+3. **Verify command** (optional) — If `verify_command` is configured for the project (e.g. `bun check && bun test`), the orchestrator runs it after execution:
+   - **Pass** → auto-commit and mark completed.
+   - **Fail** → retry once: Claude gets the failure output and tries to fix. Verify runs again.
+     - **Pass** → auto-commit and mark completed.
+     - **Fail** → revert to checkpoint (git hard reset) and mark task failed.
+
+4. **Auto-commit** — On success, changes are committed with a conventional commit message extracted from Claude's output (regex → Sonnet fallback → generic fallback). The commit author is `Autocoder <autocoder@localhost>`.
+
+5. **No verify command** — If no verify command is set, auto-commit runs unconditionally after execution.
+
+**Config keys** (stored in the `config` table as `<key>:<projectId>`):
+- `timeout_minutes` — Minutes before killing a task (default `15`, `0` = no limit)
+- `verify_command` — Shell command to run after each execution task (empty = disabled)
+
+Git operations use `isomorphic-git` via `src/server/git.ts`.
+
 ## Non-Goals
 
 - No CLI interface (dashboard only + MCP)
 - No multi-user / auth (local tool)
 - No remote/cloud deployment considerations
 - No predefined task categories (prompt is flexible)
+- No internationalization (English only is fine)

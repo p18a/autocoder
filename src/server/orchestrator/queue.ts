@@ -1,4 +1,5 @@
 import { AUTO_CONTINUE_DELAY_MS, MAX_DISCOVERY_FAILS } from "../constants.ts";
+import { gitAutoCommit, gitRevertToCheckpoint, gitSaveCheckpoint } from "../git.ts";
 import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
 import {
@@ -7,13 +8,36 @@ import {
 	extractDiscoveryWithClaude,
 	postProcessDiscovery,
 } from "./discovery.ts";
-import { executeTask } from "./process.ts";
+import { executeTask, parseCommitSummary, runVerifyCommand } from "./process.ts";
 
 export interface QueueProcessor {
 	/** Kick the queue processor. Safe to call multiple times — it won't double-run. */
 	processQueue(): void;
 	/** Whether the queue loop is currently running. */
 	isProcessing(): boolean;
+}
+
+/** Auto-commit changes after a successful execution task. */
+async function autoCommitTask(
+	projectPath: string,
+	resultText: string | undefined,
+	taskPrompt: string,
+	taskId: string,
+	deps: OrchestratorDeps,
+): Promise<void> {
+	try {
+		const message = await parseCommitSummary(resultText ?? "", taskPrompt);
+		const sha = await gitAutoCommit(projectPath, message);
+		if (sha) {
+			const commitLog = deps.db.appendTaskLog(taskId, `Auto-committed: ${sha.slice(0, 8)} — ${message}`, "system");
+			deps.broadcast({ type: "task_log", log: commitLog });
+		}
+	} catch (err) {
+		log.warn(
+			"orchestrator",
+			`Auto-commit failed for task ${taskId}: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
 }
 
 export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
@@ -124,8 +148,37 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 				deps.broadcast({ type: "task_updated", task: running });
 
 				const discovery = task.taskType === "discovery";
+
+				// Read per-project config
+				const timeoutConfig = deps.db.getProjectConfig(task.projectId, "timeout_minutes");
+				const timeoutMinutes = Number(timeoutConfig ?? "15");
+				const timeoutMs = timeoutMinutes > 0 ? timeoutMinutes * 60 * 1000 : 0;
+				const verifyCommand = discovery ? "" : (deps.db.getProjectConfig(task.projectId, "verify_command") ?? "");
+				const project = deps.db.getProject(task.projectId);
+
 				try {
-					const resultText = await executeTask(task.id, task.prompt, task.projectId, deps, task.taskType);
+					// Save checkpoint before execution tasks
+					let checkpoint: string | null = null;
+					if (!discovery && project) {
+						try {
+							checkpoint = await gitSaveCheckpoint(project.path);
+						} catch (err) {
+							log.warn(
+								"orchestrator",
+								`Could not save git checkpoint for ${task.projectId}: ${err instanceof Error ? err.message : String(err)}`,
+							);
+						}
+					}
+
+					const resultText = await executeTask(
+						task.id,
+						task.prompt,
+						task.projectId,
+						deps,
+						task.taskType,
+						timeoutMs,
+						verifyCommand || undefined,
+					);
 
 					// Re-read task — stopProject may have already marked it cancelled
 					const afterExec = deps.db.getTask(task.id);
@@ -176,6 +229,62 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 							enqueueDiscoveryIssues(task.id, task.projectId, issues, deps);
 							deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", "0");
 						}
+					} else if (verifyCommand && project) {
+						// Execution task with verify command
+						const verifyResult = await runVerifyCommand(project.path, verifyCommand, task.id, deps);
+
+						if (verifyResult.success) {
+							// Verify passed — auto-commit
+							await autoCommitTask(project.path, resultText, task.prompt, task.id, deps);
+						} else {
+							// Verify failed — retry once
+							const retryLog = deps.db.appendTaskLog(task.id, "Verification failed, asking Claude to fix…", "system");
+							deps.broadcast({ type: "task_log", log: retryLog });
+
+							const fixPrompt = `The previous changes failed verification. Fix the issues and try again.
+
+Verification command: ${verifyCommand}
+Verification output:
+${verifyResult.output}
+
+Original task: ${task.prompt}`;
+
+							await executeTask(task.id, fixPrompt, task.projectId, deps, "execution", timeoutMs);
+
+							// Re-check cancellation after retry
+							const afterRetry = deps.db.getTask(task.id);
+							if (afterRetry?.status === "cancelled") continue;
+
+							const retryVerify = await runVerifyCommand(project.path, verifyCommand, task.id, deps);
+
+							if (retryVerify.success) {
+								await autoCommitTask(project.path, resultText, task.prompt, task.id, deps);
+							} else {
+								// Retry also failed — revert to checkpoint
+								if (checkpoint) {
+									const revertLog = deps.db.appendTaskLog(
+										task.id,
+										"Verification failed after retry — reverting changes",
+										"stderr",
+									);
+									deps.broadcast({ type: "task_log", log: revertLog });
+									try {
+										await gitRevertToCheckpoint(project.path, checkpoint);
+									} catch (err) {
+										log.error("orchestrator", `Failed to revert: ${err instanceof Error ? err.message : String(err)}`);
+									}
+								}
+								const failed = deps.db.updateTask(task.id, "failed");
+								if (failed) {
+									log.info("orchestrator", `Task ${task.id} → failed (verification failed after retry)`);
+									deps.broadcast({ type: "task_updated", task: failed });
+								}
+								continue;
+							}
+						}
+					} else if (!discovery && project) {
+						// Execution task without verify command — just auto-commit
+						await autoCommitTask(project.path, resultText, task.prompt, task.id, deps);
 					}
 
 					const completed = deps.db.updateTask(task.id, "completed");

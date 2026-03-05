@@ -17,9 +17,132 @@ Guidelines:
 Task:
 `;
 
-/** Wrap a raw task prompt with autonomous execution context. */
-export function buildExecutionPrompt(prompt: string): string {
-	return EXECUTION_PREAMBLE + prompt;
+const COMMIT_FOOTER_INSTRUCTION = `
+
+When you are done, end your response with a footer separated by "---" containing a conventional commit message:
+
+---
+<type>(<scope>): <description>
+
+Where <type> is one of: fix, feat, refactor, docs, test, chore, perf, style
+<scope> is the primary module/area affected (e.g. auth, api, ui)
+<description> is a short imperative summary of what changed`;
+
+/**
+ * Wrap a raw task prompt with autonomous execution context.
+ * If a verifyCommand is provided, it is appended as an instruction.
+ */
+export function buildExecutionPrompt(prompt: string, verifyCommand?: string): string {
+	let result = EXECUTION_PREAMBLE + prompt;
+	if (verifyCommand) {
+		result += `\n\nIMPORTANT: After making changes, run this verification command: ${verifyCommand}\nFix any issues before finishing.`;
+	}
+	result += COMMIT_FOOTER_INSTRUCTION;
+	return result;
+}
+
+/**
+ * Run a shell command in the project directory and return the result.
+ */
+export async function runVerifyCommand(
+	projectPath: string,
+	verifyCommand: string,
+	taskId: string,
+	deps: OrchestratorDeps,
+): Promise<{ success: boolean; output: string }> {
+	const verifyLog = deps.db.appendTaskLog(taskId, `Running verify command: ${verifyCommand}`, "system");
+	deps.broadcast({ type: "task_log", log: verifyLog });
+
+	const proc = Bun.spawn(["sh", "-c", verifyCommand], {
+		cwd: projectPath,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+
+	const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+	const exitCode = await proc.exited;
+	const output = (stdout + stderr).trim();
+
+	if (output) {
+		const outputLog = deps.db.appendTaskLog(taskId, `Verify output:\n${output}`, "system");
+		deps.broadcast({ type: "task_log", log: outputLog });
+	}
+
+	const success = exitCode === 0;
+	const statusLog = deps.db.appendTaskLog(
+		taskId,
+		success ? "Verification passed" : `Verification failed (exit code ${exitCode})`,
+		success ? "system" : "stderr",
+	);
+	deps.broadcast({ type: "task_log", log: statusLog });
+
+	return { success, output };
+}
+
+/**
+ * Extract a conventional commit message from Claude's result text.
+ * Three-tier extraction:
+ * 1. Regex — look for last "---" separator and extract commit line
+ * 2. Sonnet fallback — call Claude to extract from result text
+ * 3. Final fallback — chore: <first 72 chars of task prompt>
+ */
+export async function parseCommitSummary(resultText: string, taskPrompt: string): Promise<string> {
+	// Tier 1: regex extraction
+	const regex = extractCommitFromFooter(resultText);
+	if (regex) return regex;
+
+	// Tier 2: Sonnet fallback
+	try {
+		const sonnetResult = await extractCommitWithSonnet(resultText);
+		if (sonnetResult) return sonnetResult;
+	} catch (err) {
+		log.warn("orchestrator", `Sonnet commit extraction failed: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	// Tier 3: final fallback
+	const truncated = taskPrompt.slice(0, 72).replace(/\n/g, " ");
+	return `chore: ${truncated}`;
+}
+
+/** Tier 1: extract conventional commit from a --- footer in result text. */
+function extractCommitFromFooter(resultText: string): string | null {
+	const parts = resultText.split("---");
+	if (parts.length < 2) return null;
+
+	const lastPart = parts[parts.length - 1];
+	if (!lastPart) return null;
+	const footer = lastPart.trim();
+	const match = footer.match(/^(fix|feat|refactor|docs|test|chore|perf|style)(\([^)]+\))?:\s*.+/m);
+	return match ? match[0].trim() : null;
+}
+
+/** Tier 2: call Sonnet to extract a commit message from free-form text. */
+async function extractCommitWithSonnet(resultText: string): Promise<string | null> {
+	const prompt = `Extract a conventional commit message from this text. Return ONLY a single line in the format: type(scope): description
+
+Where type is one of: fix, feat, refactor, docs, test, chore, perf, style
+If you cannot determine the type, use "chore".
+
+Text:
+${resultText.slice(0, 5000)}`;
+
+	const env = buildClaudeEnv();
+	const proc = Bun.spawn(["claude", "-p", prompt, "--model", "claude-sonnet-4-6"], {
+		stdout: "pipe",
+		stderr: "pipe",
+		env,
+	});
+
+	const timeout = setTimeout(() => proc.kill(), 30_000);
+	const stdout = await new Response(proc.stdout).text();
+	const exitCode = await proc.exited;
+	clearTimeout(timeout);
+
+	if (exitCode !== 0) return null;
+
+	const line = stdout.trim().split("\n")[0] ?? "";
+	const match = line.match(/^(fix|feat|refactor|docs|test|chore|perf|style)(\([^)]+\))?:\s*.+/);
+	return match ? match[0].trim() : null;
 }
 
 /** Build a minimal env for Claude subprocesses — only forward known-safe variables. */
@@ -41,6 +164,8 @@ export const activeProcesses = new Map<string, Subprocess>();
  * Execute a single task by spawning the Claude CLI.
  * Streams output to the UI via task logs + broadcast.
  * Throws on non-zero exit code.
+ *
+ * @param effectivePrompt - The already-built prompt to send (caller applies buildExecutionPrompt)
  */
 export async function executeTask(
 	taskId: string,
@@ -48,6 +173,8 @@ export async function executeTask(
 	projectId: string,
 	deps: OrchestratorDeps,
 	taskType: TaskType = "execution",
+	timeoutMs?: number,
+	verifyCommand?: string,
 ): Promise<string | undefined> {
 	const project = deps.db.getProject(projectId);
 	if (!project) throw new Error(`Project ${projectId} not found`);
@@ -55,7 +182,7 @@ export async function executeTask(
 	const taskLog = deps.db.appendTaskLog(taskId, `Starting Claude in ${project.path}`, "system");
 	deps.broadcast({ type: "task_log", log: taskLog });
 
-	const effectivePrompt = taskType === "execution" ? buildExecutionPrompt(prompt) : prompt;
+	const effectivePrompt = taskType === "execution" ? buildExecutionPrompt(prompt, verifyCommand) : prompt;
 
 	const args = [
 		"claude",
@@ -88,16 +215,20 @@ export async function executeTask(
 
 	activeProcesses.set(projectId, proc);
 
-	const timeout = setTimeout(() => {
-		log.warn("orchestrator", `Task ${taskId} timed out after ${TASK_TIMEOUT_MS / 1000}s, killing process`);
-		const timeoutLog = deps.db.appendTaskLog(
-			taskId,
-			`Task timed out after ${TASK_TIMEOUT_MS / 1000} seconds`,
-			"stderr",
-		);
-		deps.broadcast({ type: "task_log", log: timeoutLog });
-		proc.kill();
-	}, TASK_TIMEOUT_MS);
+	const effectiveTimeoutMs = timeoutMs ?? TASK_TIMEOUT_MS;
+	const timeout =
+		effectiveTimeoutMs > 0
+			? setTimeout(() => {
+					log.warn("orchestrator", `Task ${taskId} timed out after ${effectiveTimeoutMs / 1000}s, killing process`);
+					const timeoutLog = deps.db.appendTaskLog(
+						taskId,
+						`Task timed out after ${effectiveTimeoutMs / 1000} seconds`,
+						"stderr",
+					);
+					deps.broadcast({ type: "task_log", log: timeoutLog });
+					proc.kill();
+				}, effectiveTimeoutMs)
+			: null;
 
 	try {
 		log.info("orchestrator", `[task=${taskId}] reading stdout+stderr streams…`);
@@ -127,7 +258,7 @@ export async function executeTask(
 
 		return resultText;
 	} finally {
-		clearTimeout(timeout);
+		if (timeout) clearTimeout(timeout);
 		activeProcesses.delete(projectId);
 	}
 }

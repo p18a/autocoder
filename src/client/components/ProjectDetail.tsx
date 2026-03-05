@@ -40,6 +40,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 	const isStarted = useConfigStore((s) => s.configs[`started:${projectId}`] === "true");
 	const autoContinue = useConfigStore((s) => s.configs[`auto_continue:${projectId}`] === "true");
 	const customInstructions = useConfigStore((s) => s.configs[`custom_instructions:${projectId}`] ?? "");
+	const timeoutMinutes = useConfigStore((s) => s.configs[`timeout_minutes:${projectId}`] ?? "15");
+	const verifyCommand = useConfigStore((s) => s.configs[`verify_command:${projectId}`] ?? "");
 
 	const activeTask = useMemo(() => projectTasks.find((t) => t.status === "running"), [projectTasks]);
 	const queuedTasks = useMemo(() => projectTasks.filter((t) => t.status === "queued"), [projectTasks]);
@@ -71,11 +73,15 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 		isStarted,
 		autoContinue,
 		customInstructions,
+		timeoutMinutes,
+		verifyCommand,
 		startLabel: hasQueuedTasks ? "Start execution" : "Start discovery",
 		onStart: () => sendStartProject(projectId, hasQueuedTasks ? "execute" : "discover"),
 		onStop: () => sendStopProject(projectId),
 		onToggleAutoContinue: () => sendUpdateConfig(`auto_continue:${projectId}`, autoContinue ? "false" : "true"),
 		onCustomInstructionsChange: (value: string) => sendUpdateConfig(`custom_instructions:${projectId}`, value),
+		onTimeoutChange: (value: string) => sendUpdateConfig(`timeout_minutes:${projectId}`, value),
+		onVerifyCommandChange: (value: string) => sendUpdateConfig(`verify_command:${projectId}`, value),
 	};
 
 	const queueProps = {
@@ -114,7 +120,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
 			{/* Mobile: single tab content + bottom tab bar */}
 			<div className="flex-1 flex flex-col overflow-hidden lg:hidden">
-				<div className="flex-1 overflow-auto p-4">
+				<div className="flex-1 overflow-auto p-2">
 					{mobileTab === "controls" && <ControlsCard {...controlsProps} />}
 					{mobileTab === "queue" && <QueueCard {...queueProps} className="h-full" />}
 					{mobileTab === "history" && <HistoryCard {...historyProps} className="h-full" />}

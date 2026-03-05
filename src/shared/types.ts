@@ -39,7 +39,7 @@ export interface Config {
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
-export type LogSource = "server" | "ws" | "orchestrator" | "db";
+export type LogSource = "server" | "ws" | "orchestrator" | "db" | "git";
 
 export interface ServerLog {
 	id: string;
