@@ -73,13 +73,22 @@ describe("parseCommitSummary", () => {
 		expect(result).toBe("chore: update dependencies");
 	});
 
-	test("returns a valid conventional commit even without footer", async () => {
-		const result = await parseCommitSummary(
-			"I made the changes you asked for.",
-			"Fix the authentication bug in login handler",
-		);
-		// Either Sonnet extracts something or we get the fallback — both should be valid
-		expect(result).toMatch(/^(fix|feat|refactor|docs|test|chore|perf|style)(\([^)]*\))?:\s*.+/);
+	test("returns fallback conventional commit when no footer present", async () => {
+		// Mock Bun.spawn to simulate Sonnet failure so we hit the tier-3 fallback
+		const originalSpawn = Bun.spawn;
+		Bun.spawn = (() => {
+			const proc = originalSpawn(["false"], { stdout: "pipe", stderr: "pipe" });
+			return proc;
+		}) as typeof Bun.spawn;
+		try {
+			const result = await parseCommitSummary(
+				"I made the changes you asked for.",
+				"Fix the authentication bug in login handler",
+			);
+			expect(result).toBe("chore: Fix the authentication bug in login handler");
+		} finally {
+			Bun.spawn = originalSpawn;
+		}
 	});
 });
 

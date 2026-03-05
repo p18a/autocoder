@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Task, TaskLog as TaskLogEntry } from "../../../shared/types.ts";
 import { sendRequestTaskLogs } from "../../stores/commands.ts";
@@ -16,6 +16,7 @@ export function AgentActivityCard({ task, className }: AgentActivityCardProps) {
 	const logs = useTasksStore((s) => (task ? (s.logs[task.id] ?? EMPTY_LOGS) : EMPTY_LOGS));
 	const meta = useTasksStore((s) => (task ? s.logMeta[task.id] : undefined));
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const isNearBottomRef = useRef(true);
 
 	const taskId = task?.id;
 	useEffect(() => {
@@ -24,16 +25,19 @@ export function AgentActivityCard({ task, className }: AgentActivityCardProps) {
 		}
 	}, [taskId]);
 
-	// Auto-scroll to bottom only when user is already near the bottom
+	const handleScroll = useCallback(() => {
+		if (scrollRef.current) {
+			const el = scrollRef.current;
+			isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+		}
+	}, []);
+
+	// Auto-scroll to bottom only when user was already near the bottom
 	const logCount = logs.length;
 	// biome-ignore lint/correctness/useExhaustiveDependencies: logCount triggers scroll on new logs
 	useEffect(() => {
-		if (scrollRef.current) {
-			const el = scrollRef.current;
-			const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-			if (isNearBottom) {
-				el.scrollTop = el.scrollHeight;
-			}
+		if (scrollRef.current && isNearBottomRef.current) {
+			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
 	}, [logCount]);
 
@@ -63,7 +67,11 @@ export function AgentActivityCard({ task, className }: AgentActivityCardProps) {
 				{task && !discovery && <p className="text-xs text-muted-foreground truncate">{task.prompt}</p>}
 			</CardHeader>
 			<CardContent className="flex-1 overflow-hidden pb-3">
-				<div ref={scrollRef} className="h-full overflow-y-auto rounded border border-border bg-muted p-2">
+				<div
+					ref={scrollRef}
+					onScroll={handleScroll}
+					className="h-full overflow-y-auto rounded border border-border bg-muted p-2"
+				>
 					<LogViewer logs={logs} hasMore={hasMore} onLoadMore={handleLoadMore} emptyMessage={emptyMessage} />
 				</div>
 			</CardContent>
