@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun add:*)",
+      "Bash(bunx:*)",
+      "Bash(bun run:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(curl:*)",
+      "Bash(bun check:*)",
+      "Bash(bun typecheck:*)",
+      "Bash(claude:*)",
+      "Bash(sqlite3:*)",
+      "Bash(bun:*)",
+      "Bash(md5:*)",
+      "Bash(bun test:*)",
+      "Bash(grep:*)",
+      "Bash(CLAUDE_CODE_ENTRYPOINT=\"\" claude:*)",
+      "Bash(env:*)",
+      "mcp__chrome-devtools__list_pages",
+      "Bash(git stash:*)",
+      "Bash(script:*)"
+    ]
+  }
+}

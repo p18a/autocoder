@@ -74,7 +74,7 @@ function setupStores(
 
 	useProjectsStore.setState({ projects: project ? [project] : [] });
 	useTasksStore.setState({ tasks, logs: {}, logMeta: {} });
-	useConnectionStore.setState({ initialized });
+	useConnectionStore.setState({ initialized, ws: null, status: "disconnected" });
 
 	const configs: Record<string, string> = {};
 	if (started) configs[`started:${PROJECT.id}`] = "true";

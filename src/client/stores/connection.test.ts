@@ -85,20 +85,23 @@ describe("ReconnectController", () => {
 
 describe("useConnectionStore", () => {
 	const initialReconnect = useConnectionStore.getState().reconnect;
-	const originalSend = useConnectionStore.getState().send;
-	const originalConnect = useConnectionStore.getState().connect;
-	const originalDisconnect = useConnectionStore.getState().disconnect;
 
 	beforeEach(() => {
+		// Close any leftover WebSocket from a previous test before resetting state
+		const prev = useConnectionStore.getState().ws;
+		if (prev && typeof prev.close === "function") {
+			prev.onclose = null;
+			prev.onerror = null;
+			prev.onopen = null;
+			prev.onmessage = null;
+			prev.close();
+		}
 		useConnectionStore.setState({
 			status: "disconnected",
 			initialized: false,
 			ws: null,
 			connectionId: 0,
 			reconnect: initialReconnect,
-			send: originalSend,
-			connect: originalConnect,
-			disconnect: originalDisconnect,
 		});
 		initialReconnect.clearTimer();
 		initialReconnect.delay = 1000;
@@ -174,6 +177,8 @@ describe("useConnectionStore", () => {
 			expect(useConnectionStore.getState().connectionId).toBe(1);
 
 			await connectPromise;
+			// Clean up WebSocket created by connect to prevent unhandled errors
+			useConnectionStore.getState().disconnect();
 			globalThis.fetch = originalFetch;
 		});
 

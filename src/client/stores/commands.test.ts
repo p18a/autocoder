@@ -16,6 +16,7 @@ import { useConnectionStore } from "./connection.ts";
 
 describe("commands", () => {
 	const sendMock = mock<(data: string) => boolean>(() => true);
+	const originalSend = useConnectionStore.getState().send;
 
 	beforeEach(() => {
 		sendMock.mockClear();
@@ -23,7 +24,7 @@ describe("commands", () => {
 	});
 
 	afterEach(() => {
-		useConnectionStore.setState({ send: () => false } as never);
+		useConnectionStore.setState({ send: originalSend } as never);
 	});
 
 	test("sendAddTask sends add_task message", () => {
