@@ -35,6 +35,18 @@ export interface Config {
 	value: string;
 }
 
+// --- Dev Journal ---
+
+export type JournalTier = "recent" | "summary" | "historical";
+
+export interface JournalEntry {
+	id: string;
+	projectId: string;
+	content: string;
+	tier: JournalTier;
+	createdAt: string;
+}
+
 // --- Server Logging ---
 
 export type LogLevel = "debug" | "info" | "warn" | "error";

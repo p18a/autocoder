@@ -37,6 +37,18 @@ export const configSchema = z.object({
 	value: z.string(),
 });
 
+// --- Dev Journal ---
+
+export const journalTierSchema = z.enum(["recent", "summary", "historical"]);
+
+export const journalEntrySchema = z.object({
+	id: z.string(),
+	projectId: z.string(),
+	content: z.string(),
+	tier: journalTierSchema,
+	createdAt: z.string(),
+});
+
 // --- Server Logging ---
 
 export const logLevelSchema = z.enum(["debug", "info", "warn", "error"]);

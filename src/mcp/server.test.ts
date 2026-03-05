@@ -163,3 +163,107 @@ describe("MCP Server", () => {
 		expect(getTextContent(result)).toContain("Task not found");
 	});
 });
+
+describe("MCP Journal Tools", () => {
+	test("lists journal tools", async () => {
+		const result = await client.listTools();
+		const toolNames = result.tools.map((t) => t.name);
+		expect(toolNames).toContain("read_journal");
+		expect(toolNames).toContain("write_journal");
+		expect(toolNames).toContain("search_journal");
+	});
+
+	test("write_journal creates an entry and read_journal returns it", async () => {
+		const project = db.createProject("MCP Journal Test", "/tmp/mcp-journal-test");
+
+		const writeResult = await client.callTool({
+			name: "write_journal",
+			arguments: { projectId: project.id, content: "Auth module uses deprecated bcrypt API" },
+		});
+		expect(writeResult.isError).toBeFalsy();
+		expect(getTextContent(writeResult)).toContain("Journal entry recorded");
+
+		const readResult = await client.callTool({
+			name: "read_journal",
+			arguments: { projectId: project.id },
+		});
+		const text = getTextContent(readResult);
+		expect(text).toContain("Auth module uses deprecated bcrypt API");
+		expect(text).toContain("Recent Notes");
+
+		db.deleteProjectCascade(project.id);
+	});
+
+	test("read_journal returns empty message for new project", async () => {
+		const project = db.createProject("MCP Journal Empty", "/tmp/mcp-journal-empty");
+
+		const result = await client.callTool({
+			name: "read_journal",
+			arguments: { projectId: project.id },
+		});
+		expect(getTextContent(result)).toContain("No journal entries");
+
+		db.deleteProjectCascade(project.id);
+	});
+
+	test("read_journal filters by tier", async () => {
+		const project = db.createProject("MCP Journal Tier", "/tmp/mcp-journal-tier");
+
+		await client.callTool({
+			name: "write_journal",
+			arguments: { projectId: project.id, content: "Recent entry" },
+		});
+
+		const result = await client.callTool({
+			name: "read_journal",
+			arguments: { projectId: project.id, tier: "summary" },
+		});
+		expect(getTextContent(result)).toContain("No summary journal entries");
+
+		db.deleteProjectCascade(project.id);
+	});
+
+	test("search_journal finds matching entries", async () => {
+		const project = db.createProject("MCP Journal Search", "/tmp/mcp-journal-search");
+
+		await client.callTool({
+			name: "write_journal",
+			arguments: { projectId: project.id, content: "WebSocket reconnect logic has a race condition in the handshake" },
+		});
+		await client.callTool({
+			name: "write_journal",
+			arguments: { projectId: project.id, content: "Database migrations run on startup" },
+		});
+
+		const result = await client.callTool({
+			name: "search_journal",
+			arguments: { projectId: project.id, query: "race condition" },
+		});
+		const text = getTextContent(result);
+		expect(text).toContain("race condition");
+		expect(text).not.toContain("Database migrations");
+
+		db.deleteProjectCascade(project.id);
+	});
+
+	test("search_journal returns empty for no matches", async () => {
+		const project = db.createProject("MCP Journal NoMatch", "/tmp/mcp-journal-nomatch");
+
+		const result = await client.callTool({
+			name: "search_journal",
+			arguments: { projectId: project.id, query: "nonexistent_term_xyz" },
+		});
+		expect(getTextContent(result)).toContain("No journal entries matching");
+
+		db.deleteProjectCascade(project.id);
+	});
+
+	test("write_journal returns error for nonexistent project", async () => {
+		const result = await client.callTool({
+			name: "write_journal",
+			arguments: { projectId: "nonexistent", content: "test" },
+		});
+		expect(result.isError).toBe(true);
+		expect(getTextContent(result)).toContain("Project not found");
+	});
+});

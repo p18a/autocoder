@@ -33,6 +33,7 @@ const CONFIG_PREFIXES = [
 	"project_purpose",
 ];
 const deleteConfigByKey = db.prepare("DELETE FROM config WHERE key = ?");
+const deleteJournalByProject = db.prepare("DELETE FROM journal_entries WHERE project_id = ?");
 
 export function createProject(name: string, path: string): Project {
 	const id = ulid();
@@ -58,6 +59,7 @@ export function deleteProjectCascade(id: string): boolean {
 	return db.transaction(() => {
 		deleteTaskLogsByProject.run(id);
 		deleteTasksByProject.run(id);
+		deleteJournalByProject.run(id);
 		for (const prefix of CONFIG_PREFIXES) {
 			deleteConfigByKey.run(`${prefix}:${id}`);
 		}

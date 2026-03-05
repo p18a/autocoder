@@ -14,6 +14,14 @@ Guidelines:
 - If the project has a CLAUDE.md or similar instructions file, follow its conventions.
 - Do not introduce new dependencies unless the task specifically requires it.
 
+Dev Journal:
+If you discover something important during this task that future tasks should know about, write it to the dev journal using the write_journal MCP tool. Good things to record:
+- Abandoned approaches and why they didn't work
+- Architectural constraints or gotchas you discovered
+- Prerequisites or dependencies for follow-up work
+- Recurring patterns or conventions not documented elsewhere
+Do NOT record routine completions or restate the task prompt.
+
 Task:
 `;
 

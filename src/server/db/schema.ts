@@ -74,3 +74,16 @@ runMigration("ALTER TABLE tasks ADD COLUMN title TEXT");
 
 // Add unique constraint on project path
 db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_path ON projects(path)");
+
+// Dev journal table
+db.run(`
+  CREATE TABLE IF NOT EXISTS journal_entries (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    content TEXT NOT NULL,
+    tier TEXT NOT NULL DEFAULT 'recent',
+    created_at TEXT NOT NULL
+  )
+`);
+db.run("CREATE INDEX IF NOT EXISTS idx_journal_entries_project_id ON journal_entries(project_id)");
+db.run("CREATE INDEX IF NOT EXISTS idx_journal_entries_tier ON journal_entries(project_id, tier)");

@@ -3,6 +3,17 @@ import "./schema.ts";
 
 // Config
 export { getConfig, getProjectConfig, listConfig, setConfig, setProjectConfig } from "./config.ts";
+// Journal
+export {
+	appendJournalEntry,
+	clearJournalTier,
+	getJournalEntries,
+	getJournalEntriesByTier,
+	getJournalEntryCount,
+	getOldestRecentEntries,
+	removeJournalEntry,
+	searchJournalEntries,
+} from "./journal.ts";
 // Projects
 export { createProject, deleteProject, deleteProjectCascade, getProject, listProjects } from "./projects.ts";
 // Server Logs

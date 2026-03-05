@@ -1,6 +1,7 @@
 import type { z } from "zod/v4";
 import { discoveryResultSchema } from "../../shared/schema.ts";
 import { EXTRACTION_TIMEOUT_MS, MAX_AUTOPILOT_ISSUES, MAX_DISCOVERY_ISSUES } from "../constants.ts";
+import { getJournalEntries, getJournalEntriesByTier } from "../db/journal.ts";
 import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
 import { buildClaudeEnv } from "./process.ts";
@@ -31,13 +32,41 @@ In src/handlers/user.ts, the getUser function (line ~42) calls db.findUser(id) a
 # SQL injection in search endpoint
 In src/routes/search.ts, the searchProducts function (line ~15) builds a SQL query by concatenating req.query.q directly into the WHERE clause. An attacker can inject arbitrary SQL. Replace the string concatenation with a parameterized query using db.prepare("SELECT * FROM products WHERE name LIKE ?").all(\`%\${query}%\`). Verify the existing tests still pass after the change.`;
 
+/** Build journal context section for discovery prompts. */
+function buildJournalContext(projectId: string): string {
+	const historical = getJournalEntriesByTier(projectId, "historical", 1);
+	const summaries = getJournalEntriesByTier(projectId, "summary", 3);
+	const recent = getJournalEntries(projectId, 5);
+
+	const parts: string[] = [];
+
+	if (historical.length > 0) {
+		parts.push(`Historical context:\n${historical[0]?.content ?? ""}`);
+	}
+	if (summaries.length > 0) {
+		parts.push(`Previous cycle summaries:\n${summaries.map((e) => e.content).join("\n")}`);
+	}
+	if (recent.length > 0) {
+		parts.push(`Recent notes:\n${recent.map((e) => `[${e.createdAt}] ${e.content}`).join("\n")}`);
+	}
+
+	if (parts.length === 0) return "";
+	return `\n\n## Dev Journal\nThe following notes were recorded by previous autonomous agents working on this project. Use them to avoid repeating past mistakes, continue multi-step plans, and build on prior discoveries.\n\n${parts.join("\n\n")}`;
+}
+
 /** Build the prompt for a discovery task, incorporating custom instructions if set. */
 export function buildDiscoveryPrompt(projectId: string, deps: OrchestratorDeps): string {
 	const customInstructions = deps.db.getProjectConfig(projectId, "custom_instructions");
+	const journal = buildJournalContext(projectId);
+
+	let prompt = DISCOVERY_PROMPT;
 	if (customInstructions) {
-		return `${DISCOVERY_PROMPT}\n\nAdditional focus areas from the user:\n${customInstructions}`;
+		prompt += `\n\nAdditional focus areas from the user:\n${customInstructions}`;
 	}
-	return DISCOVERY_PROMPT;
+	if (journal) {
+		prompt += journal;
+	}
+	return prompt;
 }
 
 export const AUTOPILOT_PROMPT = `You are an autonomous product developer. You have full context on this project's goals and can review its git history for what has already been done.
@@ -70,7 +99,17 @@ export function buildAutopilotPrompt(projectId: string, deps: OrchestratorDeps):
 		return buildDiscoveryPrompt(projectId, deps);
 	}
 
-	return `${AUTOPILOT_PROMPT}\n\n## Project Goals\n${purpose}`;
+	const customInstructions = deps.db.getProjectConfig(projectId, "custom_instructions");
+	const journal = buildJournalContext(projectId);
+
+	let prompt = `${AUTOPILOT_PROMPT}\n\n## Project Goals\n${purpose}`;
+	if (customInstructions) {
+		prompt += `\n\nAdditional instructions from the user:\n${customInstructions}`;
+	}
+	if (journal) {
+		prompt += journal;
+	}
+	return prompt;
 }
 
 /** Get the max issues cap for the current discovery mode. */

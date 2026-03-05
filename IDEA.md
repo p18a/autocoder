@@ -194,6 +194,35 @@ Git operations use native `git` CLI via `src/server/git.ts`.
 
 The mode is read at discovery-seed time. Switching mid-cycle is safe — in-flight tasks complete, and the next discovery uses the new mode. If autopilot has no purpose doc, it falls back to janitor mode.
 
+### Dev Journal
+
+Agents have access to a per-project dev journal — a persistent notepad for recording decisions, discoveries, abandoned approaches, and multi-task plans. Unlike `git log` (which records what changed), the journal records **intent, reasoning, and failures** — things that have no trace in commits.
+
+**MCP Tools** (available to Claude during both discovery and execution):
+- `read_journal(projectId, limit?, tier?)` — read recent entries, optionally filtered by tier
+- `write_journal(projectId, content)` — append a new entry
+- `search_journal(projectId, query, limit?)` — search by content
+
+**Three-tier compression** (system-driven, automatic):
+1. **Recent** (full entries) — everything the agent writes lands here
+2. **Summary** (compressed bullet points) — when recent exceeds 20 entries, the oldest 10 are compressed into concise summaries via a Claude call
+3. **Historical** (key decisions only) — when summaries exceed 20, the oldest 10 are rolled up into a paragraph of architectural decisions and strategic context. Trivial details are dropped.
+
+A hard cap (200 entries) acts as a safety net. Compression runs in the background after task completion.
+
+**Prompt integration**: Discovery prompts (both janitor and autopilot) include journal context automatically. Execution tasks are told to write discoveries to the journal.
+
+**What belongs in the journal**:
+- Abandoned approaches and why
+- Architectural constraints or gotchas
+- Multi-step plans where only part is done
+- Recurring patterns not documented elsewhere
+
+**What does NOT belong**:
+- Routine task completions (that's in git log)
+- Implementation details (that's in the code)
+- Restating the task prompt
+
 ## Non-Goals
 
 - No CLI interface (dashboard only + MCP)

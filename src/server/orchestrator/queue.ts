@@ -9,6 +9,7 @@ import {
 	extractDiscoveryWithClaude,
 	postProcessDiscovery,
 } from "./discovery.ts";
+import { compressJournalIfNeeded } from "./journal.ts";
 import { executeTask, parseCommitSummary, runVerifyCommand } from "./process.ts";
 
 export interface QueueProcessor {
@@ -326,6 +327,13 @@ Original task: ${task.prompt}`;
 					if (completed) {
 						log.info("orchestrator", `Task ${task.id} → completed`);
 						deps.broadcast({ type: "task_updated", task: completed });
+						// Compress journal in the background — don't block the queue
+						compressJournalIfNeeded(task.projectId).catch((err) => {
+							log.warn(
+								"orchestrator",
+								`Journal compression error: ${err instanceof Error ? err.message : String(err)}`,
+							);
+						});
 					}
 				} catch (err) {
 					// Re-read task — if already cancelled/failed externally, don't mark failed

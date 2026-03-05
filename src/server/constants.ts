@@ -22,6 +22,26 @@ export const MAX_AUTOPILOT_ISSUES = 5;
 /** Max characters stored per task-log entry (longer content is truncated). */
 export const MAX_LOG_CONTENT_LENGTH = 10_000;
 
+// ── Journal tunables ────────────────────────────────────────────────
+
+/** Number of "recent" entries before compression is triggered. */
+export const JOURNAL_COMPRESS_THRESHOLD = 20;
+
+/** Number of oldest "recent" entries to compress per batch. */
+export const JOURNAL_COMPRESS_BATCH_SIZE = 10;
+
+/** Max "summary" entries before they roll up into "historical". */
+export const JOURNAL_SUMMARY_MAX = 20;
+
+/** Number of oldest "summary" entries to roll up per batch. */
+export const JOURNAL_ROLLUP_BATCH_SIZE = 10;
+
+/** Hard cap on total journal entries per project (safety net). */
+export const JOURNAL_HARD_CAP = 200;
+
+/** Timeout for journal compression Claude calls (ms). */
+export const JOURNAL_COMPRESSION_TIMEOUT_MS = 30_000;
+
 // ── WebSocket tunables ──────────────────────────────────────────────
 
 /** Max inbound WebSocket message size in bytes (64 KB). */
