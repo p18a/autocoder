@@ -1,6 +1,6 @@
 import type { z } from "zod/v4";
 import { discoveryResultSchema } from "../../shared/schema.ts";
-import { EXTRACTION_TIMEOUT_MS, MAX_DISCOVERY_ISSUES } from "../constants.ts";
+import { EXTRACTION_TIMEOUT_MS, MAX_AUTOPILOT_ISSUES, MAX_DISCOVERY_ISSUES } from "../constants.ts";
 import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
 import { buildClaudeEnv } from "./process.ts";
@@ -38,6 +38,52 @@ export function buildDiscoveryPrompt(projectId: string, deps: OrchestratorDeps):
 		return `${DISCOVERY_PROMPT}\n\nAdditional focus areas from the user:\n${customInstructions}`;
 	}
 	return DISCOVERY_PROMPT;
+}
+
+export const AUTOPILOT_PROMPT = `You are an autonomous product developer. You have full context on this project's purpose and can review its git history for what has already been done.
+
+## Your Task
+Start by running \`git log --oneline -20\` to see what has been done recently. If any commits look relevant, check their details with \`git log -5 --format="### %s%n%b"\` for the 5 most recent.
+
+Then analyze the codebase and decide what to do next. Consider three perspectives:
+
+1. **Product**: What feature or improvement would add the most value toward the project's purpose? What's the next logical step?
+2. **Architecture**: Is the codebase ready for that next step, or does it need refactoring/infrastructure work first? Don't build on a shaky foundation.
+3. **Quality**: Are there bugs, security issues, or broken tests that would undermine new work? Fix blockers before adding features.
+
+Produce a prioritized task list. Put foundational/blocking work first, then features. Each cycle should be a coherent unit of progress — 3-5 focused tasks, not 20 scattered ones. Don't repeat work that git history shows was already done.
+
+Output ONLY a list of tasks. No preamble, no summary, no commentary before or after the list. Separate each task with "---".
+
+For each task, write a markdown heading with a short title, followed by an actionable prompt that gives an autonomous coding agent enough context to implement the change without asking questions. Include:
+- The exact file path(s) and function/component names involved (or where to create new ones)
+- What the current state is
+- What the desired state should be
+- Any edge cases or constraints to watch for`;
+
+/** Build the prompt for an autopilot discovery task. */
+export function buildAutopilotPrompt(projectId: string, deps: OrchestratorDeps): string {
+	const purpose = deps.db.getProjectConfig(projectId, "project_purpose");
+	const customInstructions = deps.db.getProjectConfig(projectId, "custom_instructions");
+
+	if (!purpose) {
+		log.warn("orchestrator", `Autopilot mode with no purpose doc for project ${projectId}, falling back to janitor`);
+		return buildDiscoveryPrompt(projectId, deps);
+	}
+
+	let prompt = `${AUTOPILOT_PROMPT}\n\n## Project Purpose\n${purpose}`;
+
+	if (customInstructions) {
+		prompt += `\n\nAdditional focus areas from the user:\n${customInstructions}`;
+	}
+
+	return prompt;
+}
+
+/** Get the max issues cap for the current discovery mode. */
+export function getMaxIssuesForMode(projectId: string, deps: OrchestratorDeps): number {
+	const mode = deps.db.getProjectConfig(projectId, "discovery_mode");
+	return mode === "autopilot" ? MAX_AUTOPILOT_ISSUES : MAX_DISCOVERY_ISSUES;
 }
 
 /** Parse discovery result text into structured issues. */
@@ -116,11 +162,12 @@ export function enqueueDiscoveryIssues(
 	issues: { title: string; prompt: string }[],
 	deps: OrchestratorDeps,
 ) {
-	const capped = issues.slice(0, MAX_DISCOVERY_ISSUES);
-	if (issues.length > MAX_DISCOVERY_ISSUES) {
+	const maxIssues = getMaxIssuesForMode(projectId, deps);
+	const capped = issues.slice(0, maxIssues);
+	if (issues.length > maxIssues) {
 		const capLog = deps.db.appendTaskLog(
 			discoveryTaskId,
-			`Discovery returned ${issues.length} issues, capped to ${MAX_DISCOVERY_ISSUES}`,
+			`Discovery returned ${issues.length} issues, capped to ${maxIssues}`,
 			"system",
 		);
 		deps.broadcast({ type: "task_log", log: capLog });

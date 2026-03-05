@@ -3,6 +3,7 @@ import { gitAutoCommit, gitRevertToCheckpoint, gitSaveCheckpoint } from "../git.
 import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
 import {
+	buildAutopilotPrompt,
 	buildDiscoveryPrompt,
 	enqueueDiscoveryIssues,
 	extractDiscoveryWithClaude,
@@ -100,7 +101,9 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 
 				if (!isProjectStarted(project.id)) continue;
 
-				const prompt = buildDiscoveryPrompt(project.id, deps);
+				const mode = deps.db.getProjectConfig(project.id, "discovery_mode");
+				const prompt =
+					mode === "autopilot" ? buildAutopilotPrompt(project.id, deps) : buildDiscoveryPrompt(project.id, deps);
 				const task = deps.db.createTask(project.id, prompt, "discovery");
 				deps.broadcast({ type: "task_added", task });
 				seeded = true;

@@ -181,8 +181,18 @@ Each execution task goes through a post-execution pipeline:
 **Config keys** (stored in the `config` table as `<key>:<projectId>`):
 - `timeout_minutes` — Minutes before killing a task (default `15`, `0` = no limit)
 - `verify_command` — Shell command to run after each execution task (empty = disabled)
+- `discovery_mode` — `"janitor"` (default) or `"autopilot"`
+- `project_purpose` — Free-text description of what the project should become (autopilot mode)
 
 Git operations use `isomorphic-git` via `src/server/git.ts`.
+
+### Discovery Modes
+
+**Janitor** (default): Asks "What's broken?" — finds bugs, security issues, code quality problems. Stateless, codebase-only analysis.
+
+**Autopilot**: Asks "What should we build next?" — reads the project purpose doc, checks git history for recent work, and plans coherent units of progress (3-5 tasks per cycle). The agent runs `git log` to build context on what has already been done, avoiding repeated work.
+
+The mode is read at discovery-seed time. Switching mid-cycle is safe — in-flight tasks complete, and the next discovery uses the new mode. If autopilot has no purpose doc, it falls back to janitor mode.
 
 ## Non-Goals
 

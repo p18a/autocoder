@@ -42,6 +42,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 	const customInstructions = useConfigStore((s) => s.configs[`custom_instructions:${projectId}`] ?? "");
 	const timeoutMinutes = useConfigStore((s) => s.configs[`timeout_minutes:${projectId}`] ?? "15");
 	const verifyCommand = useConfigStore((s) => s.configs[`verify_command:${projectId}`] ?? "");
+	const discoveryMode = useConfigStore((s): "janitor" | "autopilot" =>
+		s.configs[`discovery_mode:${projectId}`] === "autopilot" ? "autopilot" : "janitor",
+	);
+	const projectPurpose = useConfigStore((s) => s.configs[`project_purpose:${projectId}`] ?? "");
 
 	const activeTask = useMemo(() => projectTasks.find((t) => t.status === "running"), [projectTasks]);
 	const queuedTasks = useMemo(() => projectTasks.filter((t) => t.status === "queued"), [projectTasks]);
@@ -72,6 +76,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 	const controlsProps = {
 		isStarted,
 		autoContinue,
+		discoveryMode,
+		projectPurpose,
 		customInstructions,
 		timeoutMinutes,
 		verifyCommand,
@@ -79,6 +85,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 		onStart: () => sendStartProject(projectId, hasQueuedTasks ? "execute" : "discover"),
 		onStop: () => sendStopProject(projectId),
 		onToggleAutoContinue: () => sendUpdateConfig(`auto_continue:${projectId}`, autoContinue ? "false" : "true"),
+		onDiscoveryModeChange: (mode: "janitor" | "autopilot") => sendUpdateConfig(`discovery_mode:${projectId}`, mode),
+		onProjectPurposeChange: (value: string) => sendUpdateConfig(`project_purpose:${projectId}`, value),
 		onCustomInstructionsChange: (value: string) => sendUpdateConfig(`custom_instructions:${projectId}`, value),
 		onTimeoutChange: (value: string) => sendUpdateConfig(`timeout_minutes:${projectId}`, value),
 		onVerifyCommandChange: (value: string) => sendUpdateConfig(`verify_command:${projectId}`, value),

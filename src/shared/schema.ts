@@ -96,8 +96,9 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		type: z.literal("set_config"),
-		key: z.string().regex(/^(auto_continue|custom_instructions):/, {
-			message: "Only auto_continue and custom_instructions config keys are client-settable",
+		key: z.string().regex(/^(auto_continue|custom_instructions|discovery_mode|project_purpose):/, {
+			message:
+				"Only auto_continue, custom_instructions, discovery_mode, and project_purpose config keys are client-settable",
 		}),
 		value: z.string().max(10_000),
 		commandId: z.string().optional(),

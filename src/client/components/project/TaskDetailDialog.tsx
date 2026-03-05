@@ -1,7 +1,7 @@
+import { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useEffect, useRef } from "react";
 import type { Task, TaskLog as TaskLogType, TaskStatus } from "../../../shared/types.ts";
 import { sendRequestTaskLogs } from "../../stores/commands.ts";
 import { useTasksStore } from "../../stores/tasks.ts";

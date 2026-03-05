@@ -16,6 +16,9 @@ export const AUTO_CONTINUE_DELAY_MS = 30_000;
 /** Max issues enqueued from a single discovery task. */
 export const MAX_DISCOVERY_ISSUES = 20;
 
+/** Max issues enqueued from a single autopilot discovery cycle. */
+export const MAX_AUTOPILOT_ISSUES = 5;
+
 /** Max characters stored per task-log entry (longer content is truncated). */
 export const MAX_LOG_CONTENT_LENGTH = 10_000;
 
