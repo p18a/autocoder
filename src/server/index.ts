@@ -22,7 +22,10 @@ const server = serve({
 
 		"/api/token": {
 			GET(req: Request) {
-				if (req.headers.get("sec-fetch-site") !== "same-origin") {
+				const fetchSite = req.headers.get("sec-fetch-site");
+				// Block only cross-site requests; allow same-origin, same-site,
+				// none (user-initiated), and null (browsers that omit the header)
+				if (fetchSite === "cross-site") {
 					return new Response("Forbidden", { status: 403 });
 				}
 				return Response.json({ token: authToken });
