@@ -35,6 +35,7 @@ export class ReconnectController {
 
 interface ConnectionState {
 	status: "connecting" | "connected" | "disconnected";
+	error: string | null;
 	initialized: boolean;
 	ws: WebSocket | null;
 	connectionId: number;
@@ -46,6 +47,7 @@ interface ConnectionState {
 
 export const useConnectionStore = create<ConnectionState>((set, get) => ({
 	status: "disconnected",
+	error: null,
 	initialized: false,
 	ws: null,
 	connectionId: 0,
@@ -61,7 +63,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
 		reconnect.clearTimer();
 
 		const thisConnectionId = reconnect.allocateConnectionId();
-		set({ status: "connecting", initialized: false, connectionId: thisConnectionId });
+		set({ status: "connecting", error: null, initialized: false, connectionId: thisConnectionId });
 
 		let token: string;
 		try {
@@ -71,7 +73,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
 			token = data.token;
 		} catch {
 			if (get().connectionId !== thisConnectionId) return;
-			set({ status: "disconnected" });
+			set({ status: "disconnected", error: "Cannot reach server" });
 			reconnect.scheduleReconnect(() => get().connect());
 			return;
 		}
@@ -85,7 +87,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
 
 		ws.onopen = () => {
 			if (get().connectionId !== thisConnectionId) return;
-			set({ status: "connected" });
+			set({ status: "connected", error: null });
 			reconnect.resetDelay();
 		};
 

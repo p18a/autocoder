@@ -138,7 +138,9 @@ describe("QueueCard", () => {
 			.getAllByRole("button")
 			.filter((btn) => btn.className.includes("hover:text-destructive"));
 		expect(cancelButtons.length).toBeGreaterThan(0);
-		fireEvent.click(cancelButtons[0]!);
+		const btn = cancelButtons[0];
+		expect(btn).toBeTruthy();
+		fireEvent.click(btn);
 
 		expect(cancelMock).toHaveBeenCalledWith("t1");
 	});

@@ -13,7 +13,10 @@
 		color-scheme: dark;
 	}
 
-	/* Radix ScrollArea viewport child uses display:table which breaks text truncation */
+	/*
+	 * Radix ScrollArea viewport child uses display:table which breaks text truncation.
+	 * !important is required to override the inline style set by the Radix component.
+	 */
 	[data-slot="scroll-area-viewport"] > div {
 		display: block !important;
 	}

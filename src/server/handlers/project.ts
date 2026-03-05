@@ -13,7 +13,7 @@ import type { Handler } from "./types.ts";
 async function validateProjectPath(rawPath: string): Promise<string> {
 	const resolved = resolve(rawPath);
 	const home = homedir();
-	if (!resolved.startsWith(home + "/") && resolved !== home) {
+	if (!resolved.startsWith(`${home}/`) && resolved !== home) {
 		throw new Error(`Path must be within your home directory (${home})`);
 	}
 	let s: Awaited<ReturnType<typeof stat>>;

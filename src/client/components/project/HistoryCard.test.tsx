@@ -109,7 +109,9 @@ describe("HistoryCard", () => {
 			.getAllByRole("button")
 			.filter((btn) => btn.className.includes("hover:text-destructive"));
 		expect(removeButtons.length).toBeGreaterThan(0);
-		fireEvent.click(removeButtons[0]!);
+		const btn = removeButtons[0];
+		expect(btn).toBeTruthy();
+		fireEvent.click(btn);
 
 		expect(onRemove).toHaveBeenCalledWith("t1");
 	});

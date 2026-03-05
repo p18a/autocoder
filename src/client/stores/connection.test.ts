@@ -98,6 +98,7 @@ describe("useConnectionStore", () => {
 		}
 		useConnectionStore.setState({
 			status: "disconnected",
+			error: null,
 			initialized: false,
 			ws: null,
 			connectionId: 0,
@@ -216,6 +217,39 @@ describe("useConnectionStore", () => {
 			expect(reconnect.timer).not.toBeNull();
 
 			reconnect.clearTimer();
+			globalThis.fetch = originalFetch;
+		});
+
+		test("sets error on fetch failure and clears it on successful connection", async () => {
+			const originalFetch = globalThis.fetch;
+
+			// Simulate fetch failure
+			globalThis.fetch = Object.assign(
+				mock(() => Promise.reject(new Error("network error"))),
+				{ preconnect: () => {} },
+			);
+
+			const { reconnect } = useConnectionStore.getState();
+			reconnect.delay = 10;
+
+			await useConnectionStore.getState().connect();
+
+			expect(useConnectionStore.getState().error).toBe("Cannot reach server");
+
+			// Now simulate successful token fetch to verify error is cleared at connect start
+			globalThis.fetch = Object.assign(
+				mock(() => Promise.resolve(new Response(JSON.stringify({ token: "t" }), { status: 200 }))),
+				{ preconnect: () => {} },
+			);
+
+			reconnect.clearTimer();
+			const connectPromise = useConnectionStore.getState().connect();
+
+			// error should be cleared at the start of connect
+			expect(useConnectionStore.getState().error).toBeNull();
+
+			await connectPromise;
+			useConnectionStore.getState().disconnect();
 			globalThis.fetch = originalFetch;
 		});
 	});
