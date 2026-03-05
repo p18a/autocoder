@@ -42,6 +42,8 @@ function renderQueue(overrides: Partial<QueueCardProps> = {}) {
 		activeTask: undefined,
 		projectId: "proj-1",
 		onAddTask: mock(() => {}),
+		newPrompt: "",
+		onNewPromptChange: mock(() => {}),
 		...overrides,
 	};
 	return render(<QueueCard {...defaults} />);
@@ -80,12 +82,11 @@ describe("QueueCard", () => {
 		expect(screen.getByText("running")).toBeTruthy();
 	});
 
-	test("calls onAddTask when typing and pressing Enter", () => {
+	test("calls onAddTask when pressing Enter with a prompt", () => {
 		const onAddTask = mock(() => {});
-		renderQueue({ onAddTask });
+		renderQueue({ onAddTask, newPrompt: "new task prompt" });
 
 		const input = screen.getByPlaceholderText("Add a task...");
-		fireEvent.change(input, { target: { value: "new task prompt" } });
 		fireEvent.keyDown(input, { key: "Enter" });
 
 		expect(onAddTask).toHaveBeenCalledWith("proj-1", "new task prompt");
@@ -93,39 +94,44 @@ describe("QueueCard", () => {
 
 	test("calls onAddTask when clicking Add button", () => {
 		const onAddTask = mock(() => {});
-		renderQueue({ onAddTask });
+		renderQueue({ onAddTask, newPrompt: "another task" });
 
-		const input = screen.getByPlaceholderText("Add a task...");
-		fireEvent.change(input, { target: { value: "another task" } });
 		fireEvent.click(screen.getByText("Add"));
 
 		expect(onAddTask).toHaveBeenCalledWith("proj-1", "another task");
 	});
 
-	test("clears input after adding a task", () => {
-		const onAddTask = mock(() => {});
-		renderQueue({ onAddTask });
+	test("calls onNewPromptChange to clear input after adding a task", () => {
+		const onNewPromptChange = mock(() => {});
+		renderQueue({ newPrompt: "task", onNewPromptChange });
 
-		const input = screen.getByPlaceholderText("Add a task...") as HTMLInputElement;
-		fireEvent.change(input, { target: { value: "task" } });
 		fireEvent.click(screen.getByText("Add"));
 
-		expect(input.value).toBe("");
+		expect(onNewPromptChange).toHaveBeenCalledWith("");
+	});
+
+	test("calls onNewPromptChange when typing", () => {
+		const onNewPromptChange = mock(() => {});
+		renderQueue({ onNewPromptChange });
+
+		const input = screen.getByPlaceholderText("Add a task...");
+		fireEvent.change(input, { target: { value: "hello" } });
+
+		expect(onNewPromptChange).toHaveBeenCalledWith("hello");
 	});
 
 	test("does not add task with empty prompt", () => {
 		const onAddTask = mock(() => {});
-		renderQueue({ onAddTask });
+		renderQueue({ onAddTask, newPrompt: "   " });
 
 		const input = screen.getByPlaceholderText("Add a task...");
-		fireEvent.change(input, { target: { value: "   " } });
 		fireEvent.keyDown(input, { key: "Enter" });
 
 		expect(onAddTask).not.toHaveBeenCalled();
 	});
 
 	test("Add button is disabled when input is empty", () => {
-		renderQueue();
+		renderQueue({ newPrompt: "" });
 		const button = screen.getByText("Add");
 		expect(button.hasAttribute("disabled")).toBe(true);
 	});
@@ -139,7 +145,7 @@ describe("QueueCard", () => {
 			.filter((btn) => btn.className.includes("hover:text-destructive"));
 		expect(cancelButtons.length).toBeGreaterThan(0);
 		const btn = cancelButtons[0];
-		expect(btn).toBeTruthy();
+		if (!btn) throw new Error("Expected cancel button");
 		fireEvent.click(btn);
 
 		expect(cancelMock).toHaveBeenCalledWith("t1");

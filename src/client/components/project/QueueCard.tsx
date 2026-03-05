@@ -15,11 +15,20 @@ export interface QueueCardProps {
 	activeTask: Task | undefined;
 	projectId: string;
 	onAddTask: (projectId: string, prompt: string) => void;
+	newPrompt: string;
+	onNewPromptChange: (value: string) => void;
 	className?: string;
 }
 
-export function QueueCard({ tasks, activeTask, projectId, onAddTask, className }: QueueCardProps) {
-	const [newPrompt, setNewPrompt] = useState("");
+export function QueueCard({
+	tasks,
+	activeTask,
+	projectId,
+	onAddTask,
+	newPrompt,
+	onNewPromptChange,
+	className,
+}: QueueCardProps) {
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
 	function openDetail(task: Task) {
@@ -31,7 +40,7 @@ export function QueueCard({ tasks, activeTask, projectId, onAddTask, className }
 		const trimmed = newPrompt.trim();
 		if (!trimmed) return;
 		onAddTask(projectId, trimmed);
-		setNewPrompt("");
+		onNewPromptChange("");
 	}
 
 	function handleKeyDown(e: React.KeyboardEvent) {
@@ -96,7 +105,7 @@ export function QueueCard({ tasks, activeTask, projectId, onAddTask, className }
 					<Input
 						placeholder="Add a task..."
 						value={newPrompt}
-						onChange={(e) => setNewPrompt(e.target.value)}
+						onChange={(e) => onNewPromptChange(e.target.value)}
 						onKeyDown={handleKeyDown}
 						className="h-8 text-sm"
 					/>

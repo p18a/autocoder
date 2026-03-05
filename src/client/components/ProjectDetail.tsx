@@ -62,6 +62,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 	const wsInitialized = useConnectionStore((s) => s.initialized);
 
 	const [mobileTab, setMobileTab] = useState<MobileTab>("activity");
+	const [newTaskPrompt, setNewTaskPrompt] = useState("");
 
 	useEffect(() => {
 		if (wsInitialized && !project) {
@@ -97,6 +98,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 		activeTask,
 		projectId,
 		onAddTask: sendAddTask,
+		newPrompt: newTaskPrompt,
+		onNewPromptChange: setNewTaskPrompt,
 	};
 
 	const historyProps = {
