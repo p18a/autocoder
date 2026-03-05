@@ -18,6 +18,7 @@
 	 * !important is required to override the inline style set by the Radix component.
 	 */
 	[data-slot="scroll-area-viewport"] > div {
+		/* biome-ignore lint/complexity/noImportantStyles: <> */
 		display: block !important;
 	}
 }
