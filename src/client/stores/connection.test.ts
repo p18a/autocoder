@@ -164,9 +164,10 @@ describe("useConnectionStore", () => {
 		test("sets status to connecting and allocates connection id", async () => {
 			// Mock fetch to return a token
 			const originalFetch = globalThis.fetch;
-			globalThis.fetch = mock(() =>
-				Promise.resolve(new Response(JSON.stringify({ token: "test-token" }), { status: 200 })),
-			) as typeof fetch;
+			globalThis.fetch = Object.assign(
+				mock(() => Promise.resolve(new Response(JSON.stringify({ token: "test-token" }), { status: 200 }))),
+				{ preconnect: () => {} },
+			);
 
 			// We can't fully test connect without a real WebSocket server,
 			// but we can verify the initial state transitions
@@ -188,7 +189,7 @@ describe("useConnectionStore", () => {
 
 			const fetchMock = mock(() => Promise.resolve(new Response("{}")));
 			const originalFetch = globalThis.fetch;
-			globalThis.fetch = fetchMock as typeof fetch;
+			globalThis.fetch = Object.assign(fetchMock, { preconnect: () => {} });
 
 			await useConnectionStore.getState().connect();
 
@@ -200,7 +201,10 @@ describe("useConnectionStore", () => {
 
 		test("schedules reconnect on fetch failure", async () => {
 			const originalFetch = globalThis.fetch;
-			globalThis.fetch = mock(() => Promise.reject(new Error("network error"))) as typeof fetch;
+			globalThis.fetch = Object.assign(
+				mock(() => Promise.reject(new Error("network error"))),
+				{ preconnect: () => {} },
+			);
 
 			const { reconnect } = useConnectionStore.getState();
 			reconnect.delay = 10;
