@@ -1,7 +1,17 @@
-import { describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { Config, Task, TaskLog, TaskStatus, TaskType } from "../../shared/types.ts";
 import type { OrchestratorDeps } from "./deps.ts";
-import { createQueueProcessor } from "./queue.ts";
+
+const mockGitHasChanges = mock(() => Promise.resolve(false));
+mock.module("../git.ts", () => ({
+	gitHasChanges: mockGitHasChanges,
+	gitAutoCommit: mock(() => Promise.resolve(null)),
+	gitSaveCheckpoint: mock(() => Promise.resolve("abc123")),
+	gitRevertToCheckpoint: mock(() => Promise.resolve()),
+}));
+
+// Must import after mock.module
+const { createQueueProcessor } = await import("./queue.ts");
 
 function createMockDeps(overrides?: Partial<OrchestratorDeps["db"]>): OrchestratorDeps {
 	let taskIdCounter = 0;
@@ -44,6 +54,11 @@ function createMockDeps(overrides?: Partial<OrchestratorDeps["db"]>): Orchestrat
 }
 
 describe("createQueueProcessor", () => {
+	afterEach(() => {
+		mockGitHasChanges.mockReset();
+		mockGitHasChanges.mockImplementation(() => Promise.resolve(false));
+	});
+
 	test("isProcessing returns false initially", () => {
 		const deps = createMockDeps();
 		const qp = createQueueProcessor(deps);
@@ -171,5 +186,51 @@ describe("createQueueProcessor", () => {
 		await new Promise((r) => setTimeout(r, 20));
 
 		expect(qp.isProcessing()).toBe(false);
+	});
+
+	test("processQueue fails task when repo has uncommitted changes", async () => {
+		mockGitHasChanges.mockImplementation(() => Promise.resolve(true));
+
+		const task = {
+			id: "t1",
+			projectId: "p1",
+			prompt: "test",
+			status: "queued" as TaskStatus,
+			taskType: "execution" as const,
+			originTaskId: null,
+			title: null,
+			createdAt: "",
+			updatedAt: "",
+		} as Task;
+
+		let getQueuedCallCount = 0;
+		const deps = createMockDeps({
+			getQueuedTasks: mock(() => {
+				getQueuedCallCount++;
+				return getQueuedCallCount === 1 ? [task] : [];
+			}),
+			getProjectConfig: mock((_pid: string, key: string) => {
+				if (key === "started") return "true";
+				return null;
+			}),
+			updateTask: mock((id: string, status: TaskStatus) => ({ ...task, id, status }) as Task),
+		});
+
+		const qp = createQueueProcessor(deps);
+		qp.processQueue();
+
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(qp.isProcessing()).toBe(false);
+		// Should have logged an error about dirty repo
+		const appendCalls = (deps.db.appendTaskLog as ReturnType<typeof mock>).mock.calls;
+		const dirtyLogCall = appendCalls.find(
+			(call: unknown[]) => typeof call[1] === "string" && (call[1] as string).includes("uncommitted"),
+		);
+		expect(dirtyLogCall).toBeDefined();
+		// Should have marked task as failed
+		const updateCalls = (deps.db.updateTask as ReturnType<typeof mock>).mock.calls;
+		const failedCall = updateCalls.find((call: unknown[]) => call[0] === "t1" && call[1] === "failed");
+		expect(failedCall).toBeDefined();
 	});
 });

@@ -1,5 +1,5 @@
 import { AUTO_CONTINUE_DELAY_MS, MAX_DISCOVERY_FAILS } from "../constants.ts";
-import { gitAutoCommit, gitRevertToCheckpoint, gitSaveCheckpoint } from "../git.ts";
+import { gitAutoCommit, gitHasChanges, gitRevertToCheckpoint, gitSaveCheckpoint } from "../git.ts";
 import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
 import {
@@ -160,6 +160,28 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 				const project = deps.db.getProject(task.projectId);
 
 				try {
+					// Refuse to start if the project repo has uncommitted or untracked changes
+					if (project) {
+						try {
+							const dirty = await gitHasChanges(project.path);
+							if (dirty) {
+								const dirtyMsg =
+									"Refusing to start task: repository has uncommitted or untracked changes. Please commit or stash your changes first.";
+								log.warn("orchestrator", `${dirtyMsg} (project=${task.projectId})`);
+								const dirtyLog = deps.db.appendTaskLog(task.id, dirtyMsg, "stderr");
+								deps.broadcast({ type: "task_log", log: dirtyLog });
+								const failed = deps.db.updateTask(task.id, "failed");
+								if (failed) deps.broadcast({ type: "task_updated", task: failed });
+								continue;
+							}
+						} catch (err) {
+							log.warn(
+								"orchestrator",
+								`Could not check git status for ${task.projectId}: ${err instanceof Error ? err.message : String(err)}`,
+							);
+						}
+					}
+
 					// Save checkpoint before execution tasks
 					let checkpoint: string | null = null;
 					if (!discovery && project) {
