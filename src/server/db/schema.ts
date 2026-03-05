@@ -71,3 +71,6 @@ function runMigration(sql: string) {
 runMigration("ALTER TABLE tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'execution'");
 runMigration("ALTER TABLE tasks ADD COLUMN origin_task_id TEXT");
 runMigration("ALTER TABLE tasks ADD COLUMN title TEXT");
+
+// Add unique constraint on project path
+db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_path ON projects(path)");

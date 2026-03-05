@@ -12,7 +12,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -76,14 +76,24 @@ function useDebouncedInput(externalValue: string, onChange: (value: string) => v
 	return { local, handleChange, flush };
 }
 
-function CustomInstructionsDialog({
+function TextEditorDialog({
 	value,
 	onChange,
 	onFlush,
+	title,
+	description,
+	placeholder,
+	editLabel,
+	addLabel,
 }: {
 	value: string;
 	onChange: (value: string) => void;
 	onFlush: (value: string) => void;
+	title: string;
+	description: string;
+	placeholder: string;
+	editLabel: string;
+	addLabel: string;
 }) {
 	const [open, setOpen] = useState(false);
 	const [draft, setDraft] = useState(value);
@@ -102,20 +112,18 @@ function CustomInstructionsDialog({
 			<DialogTrigger asChild>
 				<Button variant="outline" size="sm" className="w-full justify-start text-muted-foreground font-normal">
 					<Pencil className="size-3.5" />
-					{value ? "Edit custom instructions" : "Add custom instructions"}
+					{value ? editLabel : addLabel}
 				</Button>
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-2xl">
 				<DialogHeader>
-					<DialogTitle>Custom instructions</DialogTitle>
-					<DialogDescription>
-						Additional context appended to every discovery prompt. Use this to steer what the agent focuses on.
-					</DialogDescription>
+					<DialogTitle>{title}</DialogTitle>
+					<DialogDescription>{description}</DialogDescription>
 				</DialogHeader>
 				<Textarea
 					value={draft}
 					onChange={(e) => setDraft(e.target.value)}
-					placeholder="e.g. Focus on security issues in the auth module. Ignore styling for now. Always add tests for new code."
+					placeholder={placeholder}
 					rows={12}
 					className="text-sm"
 				/>
@@ -169,53 +177,54 @@ export function ControlsCard({
 				</div>
 
 				{/* Discovery settings */}
-				<FieldSet>
-					<FieldLegend variant="label">Discovery mode</FieldLegend>
-					<RadioGroup
-						value={discoveryMode}
-						onValueChange={(v) => onDiscoveryModeChange(v as DiscoveryMode)}
-						className="flex"
-					>
+				<RadioGroup
+					value={discoveryMode}
+					onValueChange={(v) => onDiscoveryModeChange(v as DiscoveryMode)}
+					className="flex flex-col gap-2"
+				>
+					<FieldLabel className="cursor-pointer" htmlFor="mode-autopilot">
 						<Field orientation="horizontal">
-							<RadioGroupItem value="janitor" id="mode-janitor" />
-							<FieldLabel htmlFor="mode-janitor" className="font-normal">
-								Janitor
-							</FieldLabel>
-						</Field>
-						<Field orientation="horizontal">
+							<FieldContent>
+								<FieldTitle>Autopilot</FieldTitle>
+								<FieldDescription>Plans and builds features toward the project goals.</FieldDescription>
+							</FieldContent>
 							<RadioGroupItem value="autopilot" id="mode-autopilot" />
-							<FieldLabel htmlFor="mode-autopilot" className="font-normal">
-								Autopilot
-							</FieldLabel>
 						</Field>
-					</RadioGroup>
-					<FieldDescription>
-						{discoveryMode === "janitor"
-							? "Finds bugs, security issues, and code quality problems."
-							: "Plans features and improvements toward the project purpose."}
-					</FieldDescription>
-				</FieldSet>
+					</FieldLabel>
+					<FieldLabel className="cursor-pointer" htmlFor="mode-janitor">
+						<Field orientation="horizontal">
+							<FieldContent>
+								<FieldTitle>Janitor</FieldTitle>
+								<FieldDescription>Finds bugs, security issues, and code quality problems.</FieldDescription>
+							</FieldContent>
+							<RadioGroupItem value="janitor" id="mode-janitor" />
+						</Field>
+					</FieldLabel>
+				</RadioGroup>
 
-				{discoveryMode === "autopilot" && (
-					<Field>
-						<FieldLabel htmlFor="project-purpose">Project purpose</FieldLabel>
-						<Textarea
-							id="project-purpose"
-							placeholder="What should this project become? Its goals, constraints, next steps..."
-							value={purpose.local}
-							onChange={(e) => purpose.handleChange(e.target.value)}
-							onBlur={() => purpose.flush(purpose.local)}
-							rows={3}
-							className="text-sm resize-none"
-						/>
-					</Field>
+				{discoveryMode === "autopilot" ? (
+					<TextEditorDialog
+						value={purpose.local}
+						onChange={purpose.handleChange}
+						onFlush={purpose.flush}
+						title="Project goals"
+						description="Describe what this project should become — its goals, constraints, and next steps. This guides autopilot discovery."
+						placeholder="What should this project become? Its goals, constraints, next steps..."
+						editLabel="Edit project goals"
+						addLabel="Set project goals"
+					/>
+				) : (
+					<TextEditorDialog
+						value={instructions.local}
+						onChange={instructions.handleChange}
+						onFlush={instructions.flush}
+						title="Custom instructions"
+						description="Additional context appended to every discovery prompt. Use this to steer what the agent focuses on."
+						placeholder="e.g. Focus on security issues in the auth module. Ignore styling for now. Always add tests for new code."
+						editLabel="Edit custom instructions"
+						addLabel="Add custom instructions"
+					/>
 				)}
-
-				<CustomInstructionsDialog
-					value={instructions.local}
-					onChange={instructions.handleChange}
-					onFlush={instructions.flush}
-				/>
 
 				{/* Advanced settings */}
 				<Collapsible>

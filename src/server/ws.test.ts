@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
 import type { ServerMessage } from "../shared/types.ts";
@@ -15,7 +15,7 @@ describe("WebSocket Dispatch", () => {
 
 	beforeEach(async () => {
 		sentMessages = [];
-		tempDir = await mkdtemp(join(tmpdir(), "ws-test-"));
+		tempDir = await mkdtemp(join(homedir(), ".autocoder-test-"));
 		mockWs = {
 			data: { id: "test-client" },
 			send: (data: string | Buffer) => {
@@ -52,7 +52,7 @@ describe("WebSocket Dispatch", () => {
 
 	test("create_project rejects non-existent path", async () => {
 		await expect(
-			dispatch(mockWs, { type: "create_project", name: "Bad Test", path: "/tmp/nonexistent-path-xyz-123" }),
+			dispatch(mockWs, { type: "create_project", name: "Bad Test", path: join(homedir(), "nonexistent-path-xyz-123") }),
 		).rejects.toThrow("Path does not exist");
 	});
 

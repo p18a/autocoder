@@ -215,10 +215,12 @@ export async function executeTask(
 
 	activeProcesses.set(projectId, proc);
 
+	let timedOut = false;
 	const effectiveTimeoutMs = timeoutMs ?? TASK_TIMEOUT_MS;
 	const timeout =
 		effectiveTimeoutMs > 0
 			? setTimeout(() => {
+					timedOut = true;
 					log.warn("orchestrator", `Task ${taskId} timed out after ${effectiveTimeoutMs / 1000}s, killing process`);
 					const timeoutLog = deps.db.appendTaskLog(
 						taskId,
@@ -246,6 +248,10 @@ export async function executeTask(
 			"orchestrator",
 			`[task=${taskId}] process exited code=${exitCode}, resultText=${resultText ? `${resultText.length} chars` : "none"}`,
 		);
+
+		if (timedOut) {
+			throw new Error(`Task timed out after ${effectiveTimeoutMs / 1000} seconds`);
+		}
 
 		if (exitCode !== 0) {
 			throw new Error(`Claude exited with code ${exitCode}`);

@@ -40,7 +40,7 @@ export const configSchema = z.object({
 // --- Server Logging ---
 
 export const logLevelSchema = z.enum(["debug", "info", "warn", "error"]);
-export const logSourceSchema = z.enum(["server", "ws", "orchestrator", "db"]);
+export const logSourceSchema = z.enum(["server", "ws", "orchestrator", "db", "git"]);
 
 export const serverLogSchema = z.object({
 	id: z.string(),
@@ -96,10 +96,12 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		type: z.literal("set_config"),
-		key: z.string().regex(/^(auto_continue|custom_instructions|discovery_mode|project_purpose):/, {
-			message:
-				"Only auto_continue, custom_instructions, discovery_mode, and project_purpose config keys are client-settable",
-		}),
+		key: z
+			.string()
+			.regex(/^(auto_continue|custom_instructions|discovery_mode|project_purpose|timeout_minutes|verify_command):/, {
+				message:
+					"Only auto_continue, custom_instructions, discovery_mode, project_purpose, timeout_minutes, and verify_command config keys are client-settable",
+			}),
 		value: z.string().max(10_000),
 		commandId: z.string().optional(),
 	}),

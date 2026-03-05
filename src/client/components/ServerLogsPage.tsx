@@ -16,8 +16,8 @@ const LEVEL_FILTERS: Array<{ label: string; value: LogLevel | "all" }> = [
 
 const levelColor: Record<LogLevel, string> = {
 	error: "text-destructive",
-	warn: "text-amber-400",
-	info: "text-sky-400",
+	warn: "text-warning",
+	info: "text-primary",
 	debug: "text-muted-foreground",
 };
 

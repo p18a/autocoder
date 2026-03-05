@@ -181,7 +181,9 @@ export const websocket = {
 			return;
 		}
 
-		handleMessage(ws, raw);
+		handleMessage(ws, raw).catch((err) => {
+			log.error("ws", `Unhandled error in handleMessage: ${err instanceof Error ? err.message : String(err)}`);
+		});
 	},
 	close(ws: ServerWebSocket<WSData>) {
 		clients.delete(ws);

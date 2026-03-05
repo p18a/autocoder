@@ -1,5 +1,6 @@
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { createRootRoute, type ErrorComponentProps, Outlet, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import "../../index.css";
 import { useConnectionStore } from "../stores/connection.ts";
@@ -30,6 +31,26 @@ function RootLayout() {
 	);
 }
 
+function RootErrorComponent({ error, reset }: ErrorComponentProps) {
+	const router = useRouter();
+	return (
+		<div className="flex flex-col items-center justify-center h-dvh gap-4 p-8 text-center">
+			<h1 className="text-lg font-semibold text-destructive">Something went wrong</h1>
+			<p className="text-sm text-muted-foreground max-w-md">{error.message}</p>
+			<Button
+				variant="outline"
+				onClick={() => {
+					reset();
+					router.invalidate();
+				}}
+			>
+				Try again
+			</Button>
+		</div>
+	);
+}
+
 export const rootRoute = createRootRoute({
 	component: RootLayout,
+	errorComponent: RootErrorComponent,
 });

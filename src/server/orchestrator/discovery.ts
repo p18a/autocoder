@@ -40,14 +40,14 @@ export function buildDiscoveryPrompt(projectId: string, deps: OrchestratorDeps):
 	return DISCOVERY_PROMPT;
 }
 
-export const AUTOPILOT_PROMPT = `You are an autonomous product developer. You have full context on this project's purpose and can review its git history for what has already been done.
+export const AUTOPILOT_PROMPT = `You are an autonomous product developer. You have full context on this project's goals and can review its git history for what has already been done.
 
 ## Your Task
 Start by running \`git log --oneline -20\` to see what has been done recently. If any commits look relevant, check their details with \`git log -5 --format="### %s%n%b"\` for the 5 most recent.
 
 Then analyze the codebase and decide what to do next. Consider three perspectives:
 
-1. **Product**: What feature or improvement would add the most value toward the project's purpose? What's the next logical step?
+1. **Product**: What feature or improvement would add the most value toward the project's goals? What's the next logical step?
 2. **Architecture**: Is the codebase ready for that next step, or does it need refactoring/infrastructure work first? Don't build on a shaky foundation.
 3. **Quality**: Are there bugs, security issues, or broken tests that would undermine new work? Fix blockers before adding features.
 
@@ -64,20 +64,13 @@ For each task, write a markdown heading with a short title, followed by an actio
 /** Build the prompt for an autopilot discovery task. */
 export function buildAutopilotPrompt(projectId: string, deps: OrchestratorDeps): string {
 	const purpose = deps.db.getProjectConfig(projectId, "project_purpose");
-	const customInstructions = deps.db.getProjectConfig(projectId, "custom_instructions");
 
 	if (!purpose) {
-		log.warn("orchestrator", `Autopilot mode with no purpose doc for project ${projectId}, falling back to janitor`);
+		log.warn("orchestrator", `Autopilot mode with no project goals for project ${projectId}, falling back to janitor`);
 		return buildDiscoveryPrompt(projectId, deps);
 	}
 
-	let prompt = `${AUTOPILOT_PROMPT}\n\n## Project Purpose\n${purpose}`;
-
-	if (customInstructions) {
-		prompt += `\n\nAdditional focus areas from the user:\n${customInstructions}`;
-	}
-
-	return prompt;
+	return `${AUTOPILOT_PROMPT}\n\n## Project Goals\n${purpose}`;
 }
 
 /** Get the max issues cap for the current discovery mode. */
@@ -173,7 +166,7 @@ export function enqueueDiscoveryIssues(
 		deps.broadcast({ type: "task_log", log: capLog });
 	}
 
-	const existing = deps.db.getQueuedTasksByProject(projectId);
+	const existing = [...deps.db.getQueuedTasksByProject(projectId), ...deps.db.getRunningTasksByProject(projectId)];
 	const deduped = dedupeIssues(capped, existing);
 
 	for (const issue of deduped) {

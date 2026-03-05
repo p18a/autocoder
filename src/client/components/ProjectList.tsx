@@ -43,7 +43,7 @@ function ProjectItem({
 			<Link to="/project/$projectId" params={{ projectId: project.id }} className="block px-3 py-2">
 				<div className="flex items-center gap-2">
 					<span className={`text-sm truncate pr-6 flex-1 ${isSelected ? "font-medium" : ""}`}>{project.name}</span>
-					{isActive && <span className="size-1.5 rounded-full bg-green-500 animate-pulse shrink-0" title="Running" />}
+					{isActive && <span className="size-1.5 rounded-full bg-primary animate-pulse shrink-0" title="Running" />}
 				</div>
 				<div className="text-xs text-muted-foreground mt-0.5 truncate pr-6" title={project.path}>
 					{project.path}

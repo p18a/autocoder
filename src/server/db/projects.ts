@@ -22,7 +22,16 @@ const deleteTaskLogsByProject = db.prepare(
 	"DELETE FROM task_logs WHERE task_id IN (SELECT id FROM tasks WHERE project_id = ?)",
 );
 const deleteTasksByProject = db.prepare("DELETE FROM tasks WHERE project_id = ?");
-const CONFIG_PREFIXES = ["started", "auto_continue", "custom_instructions", "discovery_fail_streak"];
+const CONFIG_PREFIXES = [
+	"started",
+	"auto_continue",
+	"custom_instructions",
+	"discovery_fail_streak",
+	"timeout_minutes",
+	"verify_command",
+	"discovery_mode",
+	"project_purpose",
+];
 const deleteConfigByKey = db.prepare("DELETE FROM config WHERE key = ?");
 
 export function createProject(name: string, path: string): Project {

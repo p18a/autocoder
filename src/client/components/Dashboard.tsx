@@ -50,7 +50,7 @@ export function Dashboard({ projectId, children }: DashboardProps) {
 	return (
 		<div className="flex h-full bg-background text-foreground">
 			{/* Desktop sidebar */}
-			<div className="hidden md:flex w-80 flex-shrink-0 border-r border-border flex-col">
+			<div className="hidden md:flex w-60 flex-shrink-0 border-r border-border flex-col">
 				<div className="flex items-center justify-between p-4 border-b border-border h-16">
 					<h1 className="text-lg font-semibold">Autocoder</h1>
 				</div>

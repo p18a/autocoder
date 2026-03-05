@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Task, TaskLog as TaskLogType, TaskStatus } from "../../../shared/types.ts";
 import { sendRequestTaskLogs } from "../../stores/commands.ts";
 import { useTasksStore } from "../../stores/tasks.ts";
@@ -28,28 +27,21 @@ export function TaskDetailDialog({ task, open, onOpenChange }: TaskDetailDialogP
 	const logs = useTasksStore((s) => (task ? (s.logs[task.id] ?? EMPTY_LOGS) : EMPTY_LOGS));
 	const meta = useTasksStore((s) => (task ? s.logMeta[task.id] : undefined));
 
-	const scrollRef = useRef<HTMLDivElement>(null);
-	const hasScrolledRef = useRef(false);
+	const bottomRef = useRef<HTMLDivElement>(null);
+	const didScrollRef = useRef(false);
 
-	// Reset scroll flag when dialog opens
 	useEffect(() => {
-		if (open) {
-			hasScrolledRef.current = false;
+		if (!open) {
+			didScrollRef.current = false;
 		}
 	}, [open]);
 
-	// Scroll to bottom once logs are loaded after opening
 	useEffect(() => {
-		if (open && logs.length > 0 && !hasScrolledRef.current) {
-			hasScrolledRef.current = true;
-			requestAnimationFrame(() => {
-				const viewport = scrollRef.current?.querySelector("[data-slot='scroll-area-viewport']");
-				if (viewport) {
-					viewport.scrollTop = viewport.scrollHeight;
-				}
-			});
+		if (open && logs.length > 0 && !didScrollRef.current && bottomRef.current) {
+			didScrollRef.current = true;
+			bottomRef.current.scrollIntoView();
 		}
-	}, [open, logs.length]);
+	}, [open, logs]);
 
 	if (!task) return null;
 
@@ -68,7 +60,7 @@ export function TaskDetailDialog({ task, open, onOpenChange }: TaskDetailDialogP
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="flex flex-col max-sm:h-dvh max-sm:max-w-full max-sm:rounded-none max-sm:border-0 sm:max-w-2xl sm:max-h-[80vh]">
+			<DialogContent className="flex flex-col overflow-hidden max-sm:h-dvh max-sm:max-w-full max-sm:rounded-none max-sm:border-0 sm:max-w-2xl sm:max-h-[80vh]">
 				<DialogHeader className="shrink-0 pr-8">
 					<div className="flex items-center gap-2">
 						<DialogTitle className="truncate">{taskLabel(task)}</DialogTitle>
@@ -92,19 +84,20 @@ export function TaskDetailDialog({ task, open, onOpenChange }: TaskDetailDialogP
 				</DialogHeader>
 
 				{task.prompt && task.taskType !== "discovery" && (
-					<div className="shrink-0 rounded border border-border bg-muted p-3">
+					<div className="shrink-0 rounded border border-border bg-muted p-3 max-h-36 overflow-y-auto">
 						<p className="text-xs font-medium text-muted-foreground mb-1">Prompt</p>
 						<p className="text-sm whitespace-pre-wrap">{task.prompt}</p>
 					</div>
 				)}
 
-				<ScrollArea ref={scrollRef} className="flex-1 min-h-0 rounded border border-border bg-muted p-2">
+				<div className="flex-1 min-h-0 overflow-y-auto rounded border border-border bg-muted p-2">
 					{logs.length === 0 ? (
 						<p className="text-xs text-muted-foreground">No logs yet</p>
 					) : (
 						<LogViewer logs={logs} hasMore={hasMore} onLoadMore={handleLoadMore} />
 					)}
-				</ScrollArea>
+					<div ref={bottomRef} />
+				</div>
 			</DialogContent>
 		</Dialog>
 	);

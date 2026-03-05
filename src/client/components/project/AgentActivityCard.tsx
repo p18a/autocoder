@@ -24,13 +24,16 @@ export function AgentActivityCard({ task, className }: AgentActivityCardProps) {
 		}
 	}, [taskId]);
 
-	// Auto-scroll to bottom when new logs arrive
+	// Auto-scroll to bottom only when user is already near the bottom
 	const logCount = logs.length;
 	// biome-ignore lint/correctness/useExhaustiveDependencies: logCount triggers scroll on new logs
 	useEffect(() => {
 		if (scrollRef.current) {
 			const el = scrollRef.current;
-			el.scrollTop = el.scrollHeight;
+			const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+			if (isNearBottom) {
+				el.scrollTop = el.scrollHeight;
+			}
 		}
 	}, [logCount]);
 

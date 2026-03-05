@@ -1,15 +1,21 @@
 import { stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { resolve } from "node:path";
 import * as db from "../db/index.ts";
 import { startProject, stopProject } from "../orchestrator/index.ts";
 import type { Handler } from "./types.ts";
 
 /**
- * Validate that a project path resolves to an existing directory.
+ * Validate that a project path resolves to an existing directory
+ * within the user's home directory and contains a .git directory.
  * Throws with a user-friendly message on failure.
  */
 async function validateProjectPath(rawPath: string): Promise<string> {
 	const resolved = resolve(rawPath);
+	const home = homedir();
+	if (!resolved.startsWith(home + "/") && resolved !== home) {
+		throw new Error(`Path must be within your home directory (${home})`);
+	}
 	let s: Awaited<ReturnType<typeof stat>>;
 	try {
 		s = await stat(resolved);
