@@ -23,7 +23,7 @@ function RootLayout() {
 	}, [theme]);
 
 	return (
-		<div className={`${theme} h-screen w-screen overflow-hidden`}>
+		<div className={`${theme} h-dvh w-screen overflow-hidden`}>
 			<Outlet />
 			<Toaster />
 		</div>

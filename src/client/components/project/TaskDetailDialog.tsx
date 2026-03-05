@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useEffect, useRef } from "react";
 import type { Task, TaskLog as TaskLogType, TaskStatus } from "../../../shared/types.ts";
 import { sendRequestTaskLogs } from "../../stores/commands.ts";
 import { useTasksStore } from "../../stores/tasks.ts";
@@ -27,6 +28,29 @@ export function TaskDetailDialog({ task, open, onOpenChange }: TaskDetailDialogP
 	const logs = useTasksStore((s) => (task ? (s.logs[task.id] ?? EMPTY_LOGS) : EMPTY_LOGS));
 	const meta = useTasksStore((s) => (task ? s.logMeta[task.id] : undefined));
 
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const hasScrolledRef = useRef(false);
+
+	// Reset scroll flag when dialog opens
+	useEffect(() => {
+		if (open) {
+			hasScrolledRef.current = false;
+		}
+	}, [open]);
+
+	// Scroll to bottom once logs are loaded after opening
+	useEffect(() => {
+		if (open && logs.length > 0 && !hasScrolledRef.current) {
+			hasScrolledRef.current = true;
+			requestAnimationFrame(() => {
+				const viewport = scrollRef.current?.querySelector("[data-slot='scroll-area-viewport']");
+				if (viewport) {
+					viewport.scrollTop = viewport.scrollHeight;
+				}
+			});
+		}
+	}, [open, logs.length]);
+
 	if (!task) return null;
 
 	const hasMore = meta?.hasMore ?? false;
@@ -45,7 +69,7 @@ export function TaskDetailDialog({ task, open, onOpenChange }: TaskDetailDialogP
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="flex flex-col max-sm:h-dvh max-sm:max-w-full max-sm:rounded-none max-sm:border-0 sm:max-w-2xl sm:max-h-[80vh]">
-				<DialogHeader className="shrink-0">
+				<DialogHeader className="shrink-0 pr-8">
 					<div className="flex items-center gap-2">
 						<DialogTitle className="truncate">{taskLabel(task)}</DialogTitle>
 						<Badge variant={statusVariant[task.status]} className="text-xs shrink-0">
@@ -74,7 +98,7 @@ export function TaskDetailDialog({ task, open, onOpenChange }: TaskDetailDialogP
 					</div>
 				)}
 
-				<ScrollArea className="flex-1 min-h-0 rounded border border-border bg-muted p-2">
+				<ScrollArea ref={scrollRef} className="flex-1 min-h-0 rounded border border-border bg-muted p-2">
 					{logs.length === 0 ? (
 						<p className="text-xs text-muted-foreground">No logs yet</p>
 					) : (
