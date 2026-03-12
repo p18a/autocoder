@@ -11,7 +11,7 @@ const EXECUTION_PREAMBLE = `You are an autonomous coding agent. You are running 
 Guidelines:
 - Make minimal, focused changes. Only modify what is necessary to address the task.
 - Read the relevant files before editing to understand existing patterns and conventions.
-- After making changes, verify correctness: run the project's test suite or type checker if available.
+- After making changes, verify correctness: {{VERIFY_INSTRUCTION}}. Fix any issues before finishing.
 - If the project has a CLAUDE.md or similar instructions file, follow its conventions.
 - Do not introduce new dependencies unless the task specifically requires it.
 - Do NOT run git commit, git add, or any git commands. Commits are handled automatically after your changes are verified.
@@ -43,10 +43,10 @@ Where <type> is one of: fix, feat, refactor, docs, test, chore, perf, style
  * If a verifyCommand is provided, it is appended as an instruction.
  */
 export function buildExecutionPrompt(prompt: string, verifyCommand?: string): string {
-	let result = EXECUTION_PREAMBLE + prompt;
-	if (verifyCommand) {
-		result += `\n\nIMPORTANT: After making changes, run this verification command: ${verifyCommand}\nFix any issues before finishing.`;
-	}
+	const verifyInstruction = verifyCommand
+		? `run \`${verifyCommand}\``
+		: "run the project's test suite or type checker if available";
+	let result = EXECUTION_PREAMBLE.replace("{{VERIFY_INSTRUCTION}}", verifyInstruction) + prompt;
 	result += COMMIT_FOOTER_INSTRUCTION;
 	return result;
 }

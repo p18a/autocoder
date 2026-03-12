@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { Config, Task, TaskLog, TaskStatus, TaskType } from "../../shared/types.ts";
+import * as realConstants from "../constants.ts";
 import type { OrchestratorDeps } from "./deps.ts";
+
+mock.module("../constants.ts", () => ({
+	...realConstants,
+	AUTO_CONTINUE_DELAY_MS: 10,
+}));
 
 const mockGitHasChanges = mock(() => Promise.resolve(false));
 const mockGitRevertToCheckpoint = mock(() => Promise.resolve());
@@ -15,7 +21,6 @@ const mockExecuteTask = mock(() => Promise.resolve("done"));
 mock.module("./process.ts", () => ({
 	executeTask: mockExecuteTask,
 	parseCommitSummary: mock(() => Promise.resolve("chore: test")),
-	runVerifyCommand: mock(() => Promise.resolve({ success: true, output: "" })),
 	buildExecutionPrompt: mock((prompt: string) => prompt),
 	buildClaudeEnv: mock(() => ({})),
 	getMcpConfigPath: mock(() => Promise.resolve("/tmp/mcp.json")),
@@ -286,5 +291,80 @@ describe("createQueueProcessor", () => {
 
 		expect(qp.isProcessing()).toBe(false);
 		expect(mockGitRevertToCheckpoint).toHaveBeenCalledWith("/tmp", "abc123");
+	});
+
+	test("auto-continue seeds project even when another project has queued tasks", async () => {
+		const projectA = { id: "pA", name: "Project A", path: "/tmp/a", createdAt: "", updatedAt: "" };
+		const projectB = { id: "pB", name: "Project B", path: "/tmp/b", createdAt: "", updatedAt: "" };
+
+		const projectBTask = {
+			id: "tB1",
+			projectId: "pB",
+			prompt: "user task",
+			status: "queued" as TaskStatus,
+			taskType: "execution" as const,
+			originTaskId: null,
+			title: null,
+			createdAt: "",
+			updatedAt: "",
+		} as Task;
+
+		let taskIdCounter = 0;
+		let seeded = false;
+
+		const deps = createMockDeps({
+			listProjects: mock(() => [projectA, projectB]),
+			getProject: mock((id: string) => {
+				if (id === "pA") return projectA;
+				if (id === "pB") return projectB;
+				return null;
+			}),
+			// After handleAutoContinue seeds, runQueue loops and calls getQueuedTasks.
+			// Return empty so it re-enters handleAutoContinue, which now finds project stopped.
+			getQueuedTasks: mock(() => []),
+			getQueuedTasksByProject: mock((projectId: string) => {
+				// Project A has no queued tasks, project B has one
+				if (projectId === "pB") return [projectBTask];
+				return [];
+			}),
+			getRunningTasksByProject: mock(() => []),
+			getProjectConfig: mock((_pid: string, key: string) => {
+				// After first seed, mark projects as stopped so the loop exits
+				if (key === "started") return seeded ? "false" : "true";
+				if (key === "auto_continue") return "true";
+				return null;
+			}),
+			createTask: mock((projectId: string, prompt: string, taskType?: TaskType) => {
+				seeded = true;
+				return {
+					id: `t${++taskIdCounter}`,
+					projectId,
+					prompt,
+					status: "queued" as TaskStatus,
+					taskType: taskType ?? "execution",
+					originTaskId: null,
+					title: null,
+					createdAt: "",
+					updatedAt: "",
+				} as Task;
+			}),
+		});
+
+		const qp = createQueueProcessor(deps);
+		qp.processQueue();
+
+		// Wait for the short AUTO_CONTINUE_DELAY_MS (10ms) + processing time
+		await new Promise((r) => setTimeout(r, 200));
+
+		expect(qp.isProcessing()).toBe(false);
+
+		// Verify that createTask was called for project A (discovery seeding)
+		const createCalls = (deps.db.createTask as ReturnType<typeof mock>).mock.calls;
+		const seededA = createCalls.find((call: unknown[]) => call[0] === "pA" && call[2] === "discovery");
+		expect(seededA).toBeDefined();
+
+		// Verify that createTask was NOT called for project B (it has queued tasks already)
+		const seededB = createCalls.find((call: unknown[]) => call[0] === "pB" && call[2] === "discovery");
+		expect(seededB).toBeUndefined();
 	});
 });

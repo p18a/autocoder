@@ -4,7 +4,7 @@ import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
 import { buildAutopilotPrompt, buildDiscoveryPrompt, countTasksFromDiscovery } from "./discovery.ts";
 import { compressJournalIfNeeded } from "./journal.ts";
-import { executeTask, parseCommitSummary, runVerifyCommand } from "./process.ts";
+import { executeTask, parseCommitSummary } from "./process.ts";
 
 export interface QueueProcessor {
 	/** Kick the queue processor. Safe to call multiple times — it won't double-run. */
@@ -98,11 +98,11 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 				});
 				wakeUpByProject.delete(project.id);
 
-				// Re-check: if new queued tasks appeared (e.g., user clicked Start), skip seeding
-				const existingQueued = deps.db.getQueuedTasks();
+				// Re-check: if new queued tasks appeared for THIS project, skip seeding
+				const existingQueued = deps.db.getQueuedTasksByProject(project.id);
 				if (existingQueued.length > 0) {
-					log.info("orchestrator", "Auto-continue interrupted: queue has new tasks, skipping seed");
-					return true;
+					log.info("orchestrator", `Auto-continue interrupted for ${project.id}: queue has new tasks, skipping seed`);
+					continue;
 				}
 
 				if (!isProjectStarted(project.id)) continue;
@@ -266,66 +266,8 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 							);
 							deps.broadcast({ type: "task_log", log: infoLog });
 						}
-					} else if (verifyCommand && project) {
-						// Execution task with verify command
-						const verifyResult = await runVerifyCommand(project.path, verifyCommand, task.id, deps);
-
-						if (verifyResult.success) {
-							// Verify passed — auto-commit
-							await autoCommitTask(project.path, resultText, task.prompt, task.id, deps);
-						} else {
-							// Verify failed — retry once
-							const retryLog = deps.db.appendTaskLog(task.id, "Verification failed, asking Claude to fix…", "system");
-							deps.broadcast({ type: "task_log", log: retryLog });
-
-							const fixPrompt = `The previous changes failed verification. Fix the issues and try again.
-
-Verification command: ${verifyCommand}
-Verification output:
-${verifyResult.output}
-
-Original task: ${task.prompt}`;
-
-							await executeTask(task.id, fixPrompt, task.projectId, deps, "execution", timeoutMs);
-
-							// Re-check cancellation after retry
-							const afterRetry = deps.db.getTask(task.id);
-							if (afterRetry?.status === "cancelled") {
-								if (checkpoint) {
-									await revertToCheckpoint(checkpoint, project.path, task.id);
-								}
-								continue;
-							}
-
-							const retryVerify = await runVerifyCommand(project.path, verifyCommand, task.id, deps);
-
-							if (retryVerify.success) {
-								await autoCommitTask(project.path, resultText, task.prompt, task.id, deps);
-							} else {
-								// Retry also failed — revert to checkpoint
-								if (checkpoint) {
-									const revertLog = deps.db.appendTaskLog(
-										task.id,
-										"Verification failed after retry — reverting changes",
-										"stderr",
-									);
-									deps.broadcast({ type: "task_log", log: revertLog });
-									try {
-										await gitRevertToCheckpoint(project.path, checkpoint);
-									} catch (err) {
-										log.error("orchestrator", `Failed to revert: ${err instanceof Error ? err.message : String(err)}`);
-									}
-								}
-								const failed = deps.db.updateTask(task.id, "failed");
-								if (failed) {
-									log.info("orchestrator", `Task ${task.id} → failed (verification failed after retry)`);
-									deps.broadcast({ type: "task_updated", task: failed });
-								}
-								continue;
-							}
-						}
 					} else if (!discovery && project) {
-						// Execution task without verify command — just auto-commit
+						// Execution task — auto-commit (verification is delegated to the agent)
 						await autoCommitTask(project.path, resultText, task.prompt, task.id, deps);
 					}
 

@@ -335,7 +335,7 @@ export function ControlsCard({
 							onBlur={() => verify.flush(verify.local)}
 							className="text-sm"
 						/>
-						<FieldDescription>Runs after each task. Reverts on failure after 1 retry.</FieldDescription>
+						<FieldDescription>Agent runs this after each task to verify changes.</FieldDescription>
 					</Field>
 				</CollapsibleContent>
 			</Collapsible>

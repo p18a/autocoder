@@ -47,15 +47,14 @@ describe("buildExecutionPrompt", () => {
 		expect(result).toContain("fix, feat, refactor");
 	});
 
-	test("appends verify command instruction when provided", () => {
+	test("injects verify command into guidelines when provided", () => {
 		const result = buildExecutionPrompt("Fix bug", "bun check && bun test");
-		expect(result).toContain("bun check && bun test");
-		expect(result).toContain("IMPORTANT: After making changes, run this verification command");
+		expect(result).toContain("run `bun check && bun test`");
 	});
 
-	test("does not include verify instruction when no verify command", () => {
+	test("uses generic verify instruction when no verify command", () => {
 		const result = buildExecutionPrompt("Fix bug");
-		expect(result).not.toContain("IMPORTANT: After making changes, run this verification command");
+		expect(result).toContain("run the project's test suite or type checker if available");
 	});
 });
 
