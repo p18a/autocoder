@@ -133,11 +133,19 @@ describe("runVerifyCommand", () => {
 		expect(result.output).toContain("[exit code] 2");
 	});
 
-	test("logs output via deps", async () => {
+	test("logs exit code, stdout, stderr, and status as separate entries", async () => {
 		tempDir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "verify-"));
 		const deps = createMockDeps();
-		await runVerifyCommand(tempDir, "echo 'test output'", "t1", deps);
-		expect(deps.db.appendTaskLog).toHaveBeenCalled();
+		await runVerifyCommand(tempDir, "echo 'out'; echo 'err' >&2", "t1", deps);
+
+		const calls = (deps.db.appendTaskLog as ReturnType<typeof mock>).mock.calls;
+		const contents = calls.map((c: unknown[]) => c[1] as string);
+
+		// Should have: "Running verify...", exit code, stderr, stdout, status
+		expect(contents.some((c) => c.startsWith("Verify exit code:"))).toBe(true);
+		expect(contents.some((c) => c.startsWith("[stderr]"))).toBe(true);
+		expect(contents.some((c) => c.startsWith("[stdout]"))).toBe(true);
+		expect(contents.some((c) => c === "Verification passed")).toBe(true);
 		expect(deps.broadcast).toHaveBeenCalled();
 	});
 });

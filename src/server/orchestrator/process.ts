@@ -51,6 +51,12 @@ export function buildExecutionPrompt(prompt: string, verifyCommand?: string): st
 	return result;
 }
 
+/** Return the last `maxChars` of `text`, prepending a truncation marker if trimmed. */
+function tailText(text: string, maxChars: number): string {
+	if (text.length <= maxChars) return text;
+	return `…[truncated]\n${text.slice(-maxChars)}`;
+}
+
 /**
  * Run a shell command in the project directory and return the result.
  */
@@ -73,15 +79,27 @@ export async function runVerifyCommand(
 	const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
 	const exitCode = await proc.exited;
 
-	// Build structured output so the retry agent (and humans) can diagnose failures.
-	// Exit code goes first so it survives log truncation (MAX_LOG_CONTENT_LENGTH).
+	// Build full output for the retry agent (not truncated)
 	const parts: string[] = [`[exit code] ${exitCode}`];
 	if (stdout.trim()) parts.push(`[stdout]\n${stdout.trim()}`);
 	if (stderr.trim()) parts.push(`[stderr]\n${stderr.trim()}`);
 	const output = parts.join("\n\n");
 
-	const outputLog = deps.db.appendTaskLog(taskId, `Verify output:\n${output}`, "system");
-	deps.broadcast({ type: "task_log", log: outputLog });
+	// Log stdout and stderr as separate entries so they each get the full
+	// truncation budget instead of competing for one. Use the TAIL of long
+	// output since the test summary and error messages appear at the end.
+	const exitCodeLog = deps.db.appendTaskLog(taskId, `Verify exit code: ${exitCode}`, "system");
+	deps.broadcast({ type: "task_log", log: exitCodeLog });
+	if (stderr.trim()) {
+		const tail = tailText(stderr.trim(), 8_000);
+		const stderrLog = deps.db.appendTaskLog(taskId, `[stderr]\n${tail}`, "system");
+		deps.broadcast({ type: "task_log", log: stderrLog });
+	}
+	if (stdout.trim()) {
+		const tail = tailText(stdout.trim(), 8_000);
+		const stdoutLog = deps.db.appendTaskLog(taskId, `[stdout]\n${tail}`, "system");
+		deps.broadcast({ type: "task_log", log: stdoutLog });
+	}
 
 	const success = exitCode === 0;
 	const statusLog = deps.db.appendTaskLog(
