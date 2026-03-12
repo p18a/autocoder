@@ -121,15 +121,13 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 				<span className="text-xs text-muted-foreground font-mono truncate">{project.path}</span>
 			</div>
 
-			{/* Desktop: tiled layout */}
-			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] gap-4 p-4">
-				<div className="flex flex-col gap-4 overflow-hidden">
-					<ControlsCard {...controlsProps} />
-					<QueueCard {...queueProps} />
-					<HistoryCard {...historyProps} />
-					<JournalCard projectId={projectId} />
-				</div>
-				<AgentActivityCard task={activeTask} />
+			{/* Desktop: grid layout — left column has 4 equal-height cards, right column spans all rows */}
+			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] grid-rows-4 gap-4 p-4">
+				<ControlsCard {...controlsProps} />
+				<AgentActivityCard task={activeTask} className="row-span-4" />
+				<QueueCard {...queueProps} />
+				<HistoryCard {...historyProps} />
+				<JournalCard projectId={projectId} />
 			</div>
 
 			{/* Mobile: single tab content + bottom tab bar */}

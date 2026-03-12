@@ -157,8 +157,8 @@ export function ControlsCard({
 	const purpose = useDebouncedInput(projectPurpose, onProjectPurposeChange);
 
 	return (
-		<Card className="shrink-0">
-			<CardContent className="space-y-3 py-3">
+		<Card className="flex flex-col overflow-hidden">
+			<CardContent className="space-y-3 py-3 flex-1 overflow-auto">
 				{/* Action row */}
 				<div className="flex items-center gap-4">
 					{isStarted ? (

@@ -42,9 +42,7 @@ export function JournalCard({ projectId, className }: JournalCardProps) {
 	}, [projectId]);
 
 	return (
-		<Card
-			className={`flex flex-col overflow-hidden h-80 shrink-0 lg:shrink lg:h-auto lg:flex-[1_1_40%] ${className ?? ""}`}
-		>
+		<Card className={`flex flex-col overflow-hidden h-80 lg:h-auto ${className ?? ""}`}>
 			<CardHeader className="pb-2 shrink-0">
 				<div className="flex items-center justify-between">
 					<CardTitle className="text-sm">Journal</CardTitle>
