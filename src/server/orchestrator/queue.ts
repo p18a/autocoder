@@ -224,6 +224,9 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 							deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", String(streak + 1));
 							const failed = deps.db.updateTask(task.id, "failed");
 							if (failed) deps.broadcast({ type: "task_updated", task: failed });
+							// Stop the project to prevent auto-continue from looping
+							const stopConfig = deps.db.setProjectConfig(task.projectId, "started", "false");
+							deps.broadcast({ type: "config_updated", config: stopConfig });
 							continue;
 						}
 

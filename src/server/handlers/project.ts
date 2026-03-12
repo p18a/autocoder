@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import * as db from "../db/index.ts";
+import { gitHasChanges } from "../git.ts";
 import { startProject, stopProject } from "../orchestrator/index.ts";
 import type { Handler } from "./types.ts";
 
@@ -42,10 +43,23 @@ export const handleDeleteProject: Handler<"delete_project"> = async (ctx, msg) =
 };
 
 export const handleStartProject: Handler<"start_project"> = async (ctx, msg) => {
-	if (!db.getProject(msg.projectId)) {
+	const project = db.getProject(msg.projectId);
+	if (!project) {
 		ctx.sendTo(ctx.ws, { type: "error", message: `Project ${msg.projectId} not found` });
 		return;
 	}
+
+	// Reject early if the repo has uncommitted changes — prevents the button
+	// from flipping to "Stop" only to silently fail the task later.
+	const dirty = await gitHasChanges(project.path);
+	if (dirty) {
+		ctx.sendTo(ctx.ws, {
+			type: "error",
+			message: "Cannot start: repository has uncommitted or untracked changes. Please commit or stash first.",
+		});
+		return;
+	}
+
 	await startProject(msg.projectId, msg.mode);
 };
 
