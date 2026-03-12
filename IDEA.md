@@ -140,7 +140,7 @@ Separate entry point (`src/mcp/server.ts`) — runs both standalone (stdio) and 
 - `write_journal` — append a journal entry
 - `search_journal` — search journal by content
 
-The MCP server shares the same SQLite database as the main server. A broadcast hook is wired up so MCP tool calls (e.g. `add_task`) push real-time updates to WebSocket clients.
+The MCP server shares the same SQLite database as the main server. Tasks created via MCP are picked up by the queue processor on its next iteration.
 
 ### Frontend (React + Zustand + shadcn)
 
@@ -199,7 +199,7 @@ Git operations use native `git` CLI via `src/server/git.ts`.
 
 **Janitor** (default): Asks "What's broken?" — finds bugs, security issues, code quality problems. Stateless, codebase-only analysis.
 
-**Autopilot**: Asks "What should we build next?" — reads the project purpose doc, checks git history for recent work, and plans coherent units of progress (3-5 tasks per cycle). The agent runs `git log` to build context on what has already been done, avoiding repeated work.
+**Autopilot**: Asks "What should we build next?" — reads the project purpose doc, checks git history for recent work, then spawns two subagents in parallel: one for quality/improvements (3-5 fix tasks) and one for features (1-2 new feature tasks). The subagents run concurrently, each calling `add_task` via MCP for the issues they find.
 
 The mode is read at discovery-seed time. Switching mid-cycle is safe — in-flight tasks complete, and the next discovery uses the new mode. If autopilot has no purpose doc, it falls back to janitor mode.
 

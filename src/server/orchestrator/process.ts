@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { Subprocess } from "bun";
 import type { TaskType } from "../../shared/types.ts";
-import { ALLOWED_ENV_KEYS, ALLOWED_TOOLS, TASK_TIMEOUT_MS } from "../constants.ts";
+import { ALLOWED_ENV_KEYS, ALLOWED_TOOLS, DISCOVERY_EXTRA_TOOLS, TASK_TIMEOUT_MS } from "../constants.ts";
 import { log } from "../logger.ts";
 import type { OrchestratorDeps } from "./deps.ts";
 import { processStderr, processStdout } from "./stream.ts";
@@ -226,6 +226,8 @@ export async function executeTask(
 
 	const mcpConfig = await getMcpConfigPath();
 
+	const extraTools = taskType === "discovery" ? DISCOVERY_EXTRA_TOOLS : [];
+
 	const args = [
 		"claude",
 		"-p",
@@ -238,6 +240,7 @@ export async function executeTask(
 		mcpConfig,
 		"--allowedTools",
 		...ALLOWED_TOOLS,
+		...extraTools,
 		"mcp__autocoder__*",
 	];
 

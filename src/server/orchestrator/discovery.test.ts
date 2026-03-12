@@ -65,7 +65,7 @@ describe("buildDiscoveryPrompt", () => {
 });
 
 describe("buildAutopilotPrompt", () => {
-	test("returns autopilot prompt with project goals and MCP instructions", () => {
+	test("returns autopilot prompt with project goals, subagent instructions, and MCP instructions", () => {
 		const deps = createMockDeps({
 			getProjectConfig: mock((_pid: string, key: string) => (key === "project_purpose" ? "Build a todo app" : null)),
 		});
@@ -74,6 +74,9 @@ describe("buildAutopilotPrompt", () => {
 		expect(result).toContain("Build a todo app");
 		expect(result).toContain("add_task");
 		expect(result).toContain("autopilot"); // DISCOVERY_MODE interpolated
+		expect(result).toContain("two subagents in parallel");
+		expect(result).toContain("Quality & improvements");
+		expect(result).toContain("Features");
 	});
 
 	test("falls back to janitor when no project purpose set", () => {

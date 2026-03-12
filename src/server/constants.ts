@@ -14,7 +14,7 @@ export const AUTO_CONTINUE_DELAY_MS = 30_000;
 export const MAX_DISCOVERY_ISSUES = 20;
 
 /** Max issues enqueued from a single autopilot discovery cycle. */
-export const MAX_AUTOPILOT_ISSUES = 5;
+export const MAX_AUTOPILOT_ISSUES = 7;
 
 /** Max characters stored per task-log entry (longer content is truncated). */
 export const MAX_LOG_CONTENT_LENGTH = 10_000;
@@ -52,6 +52,9 @@ export const WS_RATE_LIMIT_WINDOW_MS = 1_000;
 
 /** Claude CLI tools the orchestrator is allowed to invoke. */
 export const ALLOWED_TOOLS = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(bun:*)", "Bash(git:*)", "Bash(bunx:*)"];
+
+/** Additional tools allowed for discovery tasks (subagent spawning). */
+export const DISCOVERY_EXTRA_TOOLS = ["Task"];
 
 /** Environment variables forwarded to Claude subprocesses. */
 export const ALLOWED_ENV_KEYS = [

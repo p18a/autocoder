@@ -76,20 +76,10 @@ export function buildDiscoveryPrompt(projectId: string, deps: OrchestratorDeps):
 	return interpolateDiscoveryPrompt(prompt, projectId, "janitor");
 }
 
-export const AUTOPILOT_PROMPT = `You are an autonomous product developer. You have full context on this project's goals and can review its git history for what has already been done.
-
-## Your Task
-Start by running \`git log --oneline -20\` to see what has been done recently. If any commits look relevant, check their details with \`git log -5 --format="### %s%n%b"\` for the 5 most recent.
-
-Then analyze the codebase and decide what to do next. Consider three perspectives:
-
-1. **Product**: What feature or improvement would add the most value toward the project's goals? What's the next logical step?
-2. **Architecture**: Is the codebase ready for that next step, or does it need refactoring/infrastructure work first? Don't build on a shaky foundation.
-3. **Quality**: Are there bugs, security issues, or broken tests that would undermine new work? Fix blockers before adding features.
-
+const AUTOPILOT_MCP_INSTRUCTIONS = `
 ## How to submit tasks
 
-For each task you identify, call the \`add_task\` MCP tool with:
+For each task, call the \`add_task\` MCP tool with:
 - **projectId**: \`{{PROJECT_ID}}\`
 - **title**: short title (under 80 chars)
 - **prompt**: actionable prompt with file paths, current vs. expected behavior, and implementation guidance — detailed enough for an autonomous agent to complete without asking questions
@@ -102,9 +92,37 @@ Include in each prompt:
 - What the desired state should be
 - Any edge cases or constraints to watch for
 
-Put foundational/blocking work first, then features. Each cycle should be a coherent unit of progress — 3-5 focused tasks, not 20 scattered ones. Don't repeat work that git history shows was already done.
+Submit each task as a separate \`add_task\` call. The tool handles deduplication and caps automatically.`;
 
-Submit each task as a separate \`add_task\` call. The tool handles deduplication and caps automatically. When you have submitted all tasks, output a short summary of what you planned.`;
+export const AUTOPILOT_PROMPT = `You are an autonomous product developer. You have full context on this project's goals and can review its git history for what has already been done.
+
+## Your Task
+
+Start by running \`git log --oneline -20\` to see what has been done recently. Then spawn **two subagents in parallel** using the Task tool:
+
+### Subagent 1 — Quality & improvements (3-5 tasks)
+Find 3-5 fixes or small improvements. Prioritize by impact:
+1. Bugs & correctness — crashes, wrong behavior, data loss, race conditions
+2. Security — injection, auth bypass, secrets exposure
+3. Error handling — unhandled exceptions, silent failures, missing validation
+4. Performance — O(n²) in hot paths, memory leaks, unnecessary re-renders
+5. Small refactors — dead code, duplicated logic (only if they cause real confusion)
+
+Skip cosmetic issues. Each task must be a single, focused fix.
+
+### Subagent 2 — Features (1-2 tasks)
+Identify 1-2 new feature tasks that advance the project toward its goals. Consider:
+1. What feature or improvement would add the most value? What's the next logical step?
+2. Is the codebase ready, or does it need groundwork first? Don't build on a shaky foundation.
+3. Don't repeat work that git history shows was already done.
+
+Each feature task should be scoped small enough for a single agent to complete autonomously.
+
+### Instructions for both subagents
+Give each subagent the full MCP instructions below and tell it to call \`add_task\` for each task it identifies. Put foundational/blocking work first, then features.
+${AUTOPILOT_MCP_INSTRUCTIONS}
+
+After both subagents complete, output a short summary of what was planned.`;
 
 /** Build the prompt for an autopilot discovery task. */
 export function buildAutopilotPrompt(projectId: string, deps: OrchestratorDeps): string {
