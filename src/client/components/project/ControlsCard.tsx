@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
 	Dialog,
@@ -230,51 +229,51 @@ export function ControlsCard({
 	const purpose = useDebouncedInput(projectPurpose, onProjectPurposeChange);
 
 	return (
-		<Card className="flex flex-col">
-			<CardContent className="space-y-3 py-3">
-				{/* Action row */}
-				<div className="flex items-center gap-4">
-					{isStarted ? (
-						<Button variant="destructive" onClick={onStop}>
-							Stop
-						</Button>
-					) : (
-						<Button onClick={onStart}>{startLabel}</Button>
-					)}
+		<section className="flex flex-col space-y-3 shrink-0">
+			{/* Action row */}
+			<div className="flex items-center gap-4">
+				{isStarted ? (
+					<Button variant="destructive" onClick={onStop}>
+						Stop
+					</Button>
+				) : (
+					<Button onClick={onStart}>{startLabel}</Button>
+				)}
+				<Field orientation="horizontal">
+					<Switch id="auto-discover" checked={autoContinue} onCheckedChange={onToggleAutoContinue} />
+					<FieldLabel htmlFor="auto-discover" className="font-normal cursor-pointer">
+						Auto-discover new tasks
+					</FieldLabel>
+				</Field>
+			</div>
+
+			{/* Discovery settings */}
+			<RadioGroup
+				value={discoveryMode}
+				onValueChange={(v) => onDiscoveryModeChange(v as DiscoveryMode)}
+				className="flex flex-col gap-2"
+			>
+				<FieldLabel className="cursor-pointer" htmlFor="mode-autopilot">
 					<Field orientation="horizontal">
-						<Switch id="auto-discover" checked={autoContinue} onCheckedChange={onToggleAutoContinue} />
-						<FieldLabel htmlFor="auto-discover" className="font-normal cursor-pointer">
-							Auto-discover new tasks
-						</FieldLabel>
+						<FieldContent>
+							<FieldTitle>Autopilot</FieldTitle>
+							<FieldDescription>Plans and builds features toward the project goals.</FieldDescription>
+						</FieldContent>
+						<RadioGroupItem value="autopilot" id="mode-autopilot" />
 					</Field>
-				</div>
+				</FieldLabel>
+				<FieldLabel className="cursor-pointer" htmlFor="mode-janitor">
+					<Field orientation="horizontal">
+						<FieldContent>
+							<FieldTitle>Janitor</FieldTitle>
+							<FieldDescription>Finds bugs, security issues, and code quality problems.</FieldDescription>
+						</FieldContent>
+						<RadioGroupItem value="janitor" id="mode-janitor" />
+					</Field>
+				</FieldLabel>
+			</RadioGroup>
 
-				{/* Discovery settings */}
-				<RadioGroup
-					value={discoveryMode}
-					onValueChange={(v) => onDiscoveryModeChange(v as DiscoveryMode)}
-					className="flex flex-col gap-2"
-				>
-					<FieldLabel className="cursor-pointer" htmlFor="mode-autopilot">
-						<Field orientation="horizontal">
-							<FieldContent>
-								<FieldTitle>Autopilot</FieldTitle>
-								<FieldDescription>Plans and builds features toward the project goals.</FieldDescription>
-							</FieldContent>
-							<RadioGroupItem value="autopilot" id="mode-autopilot" />
-						</Field>
-					</FieldLabel>
-					<FieldLabel className="cursor-pointer" htmlFor="mode-janitor">
-						<Field orientation="horizontal">
-							<FieldContent>
-								<FieldTitle>Janitor</FieldTitle>
-								<FieldDescription>Finds bugs, security issues, and code quality problems.</FieldDescription>
-							</FieldContent>
-							<RadioGroupItem value="janitor" id="mode-janitor" />
-						</Field>
-					</FieldLabel>
-				</RadioGroup>
-
+			<div className="grid grid-cols-2 gap-2">
 				{discoveryMode === "autopilot" ? (
 					<TextEditorDialog
 						value={purpose.local}
@@ -298,49 +297,48 @@ export function ControlsCard({
 						addLabel="Add custom instructions"
 					/>
 				)}
-
 				<JournalDialog projectId={projectId} />
+			</div>
 
-				{/* Advanced settings */}
-				<Collapsible>
-					<CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group cursor-pointer">
-						<ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-						Advanced settings
-					</CollapsibleTrigger>
-					<CollapsibleContent className="space-y-3 pt-2">
-						<Field orientation="horizontal">
-							<FieldLabel htmlFor="timeout-minutes" className="font-normal">
-								Task timeout (min)
-							</FieldLabel>
-							<Input
-								id="timeout-minutes"
-								type="number"
-								min={0}
-								className="w-20 text-sm"
-								value={timeout.local}
-								onChange={(e) => timeout.handleChange(e.target.value)}
-								onBlur={() => timeout.flush(timeout.local)}
-							/>
-							{timeout.local === "0" && <span className="text-xs text-muted-foreground">(no limit)</span>}
-						</Field>
+			{/* Advanced settings */}
+			<Collapsible>
+				<CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group cursor-pointer">
+					<ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
+					Advanced settings
+				</CollapsibleTrigger>
+				<CollapsibleContent className="space-y-3 pt-2">
+					<Field orientation="horizontal">
+						<FieldLabel htmlFor="timeout-minutes" className="font-normal">
+							Task timeout (min)
+						</FieldLabel>
+						<Input
+							id="timeout-minutes"
+							type="number"
+							min={0}
+							className="w-20 text-sm"
+							value={timeout.local}
+							onChange={(e) => timeout.handleChange(e.target.value)}
+							onBlur={() => timeout.flush(timeout.local)}
+						/>
+						{timeout.local === "0" && <span className="text-xs text-muted-foreground">(no limit)</span>}
+					</Field>
 
-						<Field>
-							<FieldLabel htmlFor="verify-command" className="font-normal">
-								Verify command
-							</FieldLabel>
-							<Input
-								id="verify-command"
-								placeholder="e.g. bun check && bun test"
-								value={verify.local}
-								onChange={(e) => verify.handleChange(e.target.value)}
-								onBlur={() => verify.flush(verify.local)}
-								className="text-sm"
-							/>
-							<FieldDescription>Runs after each task. Reverts on failure after 1 retry.</FieldDescription>
-						</Field>
-					</CollapsibleContent>
-				</Collapsible>
-			</CardContent>
-		</Card>
+					<Field>
+						<FieldLabel htmlFor="verify-command" className="font-normal">
+							Verify command
+						</FieldLabel>
+						<Input
+							id="verify-command"
+							placeholder="e.g. bun check && bun test"
+							value={verify.local}
+							onChange={(e) => verify.handleChange(e.target.value)}
+							onBlur={() => verify.flush(verify.local)}
+							className="text-sm"
+						/>
+						<FieldDescription>Runs after each task. Reverts on failure after 1 retry.</FieldDescription>
+					</Field>
+				</CollapsibleContent>
+			</Collapsible>
+		</section>
 	);
 }

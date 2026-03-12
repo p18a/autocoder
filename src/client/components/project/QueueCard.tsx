@@ -2,9 +2,8 @@ import { X } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollShadow } from "@/components/ui/scroll-shadow";
 import type { Task } from "../../../shared/types.ts";
 import { sendCancelTask, sendRequestTaskLogs } from "../../stores/commands.ts";
 import { TaskDetailDialog } from "./TaskDetailDialog.tsx";
@@ -51,12 +50,10 @@ export function QueueCard({
 	}
 
 	return (
-		<Card className={`flex flex-col overflow-hidden h-80 lg:h-auto ${className ?? ""}`}>
-			<CardHeader className="pb-2 shrink-0">
-				<CardTitle className="text-sm">Queue ({tasks.length})</CardTitle>
-			</CardHeader>
-			<CardContent className="flex-1 overflow-hidden flex flex-col gap-2 pb-3 min-h-0">
-				<ScrollArea className="flex-1 min-h-0">
+		<section className={`flex flex-col overflow-hidden h-80 lg:h-auto ${className ?? ""}`}>
+			<h3 className="text-sm font-semibold pb-2 shrink-0">Queue ({tasks.length})</h3>
+			<div className="flex-1 overflow-hidden flex flex-col gap-2 min-h-0">
+				<ScrollShadow>
 					{activeTask && (
 						<div className="flex items-center gap-2 mb-2 pb-2 border-b border-border">
 							<button
@@ -97,7 +94,7 @@ export function QueueCard({
 							))}
 						</ul>
 					)}
-				</ScrollArea>
+				</ScrollShadow>
 				{/* Inline add task */}
 				<div className="flex gap-2 shrink-0">
 					<Input
@@ -111,7 +108,7 @@ export function QueueCard({
 						Add
 					</Button>
 				</div>
-			</CardContent>
+			</div>
 			<TaskDetailDialog
 				task={selectedTask}
 				open={selectedTask !== null}
@@ -119,6 +116,6 @@ export function QueueCard({
 					if (!open) setSelectedTask(null);
 				}}
 			/>
-		</Card>
+		</section>
 	);
 }

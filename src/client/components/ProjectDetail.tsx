@@ -120,12 +120,16 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 				<span className="text-xs text-muted-foreground font-mono truncate">{project.path}</span>
 			</div>
 
-			{/* Desktop: grid layout — left column has 3 equal-height cards, right column spans all rows */}
-			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] grid-rows-[auto_auto_1fr] gap-4 p-4">
-				<ControlsCard {...controlsProps} />
-				<AgentActivityCard task={activeTask} className="row-span-3" />
-				<QueueCard {...queueProps} />
-				<HistoryCard {...historyProps} />
+			{/* Desktop: two-column layout — left column with individually scrollable sections */}
+			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] grid-rows-[minmax(0,1fr)] gap-4 p-4">
+				<div className="flex flex-col gap-4 h-full overflow-hidden">
+					<ControlsCard {...controlsProps} />
+					<hr className="border-border shrink-0" />
+					<QueueCard {...queueProps} className="shrink-0" />
+					<hr className="border-border shrink-0" />
+					<HistoryCard {...historyProps} className="flex-1 min-h-0" />
+				</div>
+				<AgentActivityCard task={activeTask} />
 			</div>
 
 			{/* Mobile: single tab content + bottom tab bar */}

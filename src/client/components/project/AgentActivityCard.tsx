@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Task, TaskLog as TaskLogEntry } from "../../../shared/types.ts";
 import { sendRequestTaskLogs } from "../../stores/commands.ts";
 import { useTasksStore } from "../../stores/tasks.ts";
@@ -59,22 +58,18 @@ export function AgentActivityCard({ task, className }: AgentActivityCardProps) {
 			: undefined;
 
 	return (
-		<Card className={`flex flex-col overflow-hidden h-120 lg:h-full ${className ?? ""}`}>
-			<CardHeader className="pb-2 shrink-0">
-				<div className="flex items-center gap-2">
-					<CardTitle className="text-sm">Agent activity</CardTitle>
-				</div>
+		<section className={`flex flex-col overflow-hidden h-120 lg:h-full ${className ?? ""}`}>
+			<div className="pb-2 shrink-0">
+				<h3 className="text-sm font-semibold">Agent activity</h3>
 				{task && !discovery && <p className="text-xs text-muted-foreground truncate">{task.prompt}</p>}
-			</CardHeader>
-			<CardContent className="flex-1 overflow-hidden pb-3">
-				<div
-					ref={scrollRef}
-					onScroll={handleScroll}
-					className="h-full overflow-y-auto rounded border border-border bg-muted p-2"
-				>
-					<LogViewer logs={logs} hasMore={hasMore} onLoadMore={handleLoadMore} emptyMessage={emptyMessage} />
-				</div>
-			</CardContent>
-		</Card>
+			</div>
+			<div
+				ref={scrollRef}
+				onScroll={handleScroll}
+				className="flex-1 min-h-0 overflow-y-auto rounded border border-border/50 bg-muted/30 p-2"
+			>
+				<LogViewer logs={logs} hasMore={hasMore} onLoadMore={handleLoadMore} emptyMessage={emptyMessage} />
+			</div>
+		</section>
 	);
 }
