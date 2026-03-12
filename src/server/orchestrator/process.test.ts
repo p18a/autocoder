@@ -113,12 +113,24 @@ describe("runVerifyCommand", () => {
 		expect(result.success).toBe(false);
 	});
 
-	test("captures output from the command", async () => {
+	test("captures structured output with stdout/stderr labels", async () => {
 		tempDir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "verify-"));
 		const deps = createMockDeps();
 		const result = await runVerifyCommand(tempDir, "echo 'hello world'", "t1", deps);
 		expect(result.success).toBe(true);
+		expect(result.output).toContain("[stdout]");
 		expect(result.output).toContain("hello world");
+		expect(result.output).toContain("[exit code] 0");
+	});
+
+	test("includes exit code in failure output", async () => {
+		tempDir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "verify-"));
+		const deps = createMockDeps();
+		const result = await runVerifyCommand(tempDir, "echo 'oops' >&2; exit 2", "t1", deps);
+		expect(result.success).toBe(false);
+		expect(result.output).toContain("[stderr]");
+		expect(result.output).toContain("oops");
+		expect(result.output).toContain("[exit code] 2");
 	});
 
 	test("logs output via deps", async () => {

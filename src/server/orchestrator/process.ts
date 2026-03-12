@@ -62,7 +62,11 @@ export async function runVerifyCommand(
 	const verifyLog = deps.db.appendTaskLog(taskId, `Running verify command: ${verifyCommand}`, "system");
 	deps.broadcast({ type: "task_log", log: verifyLog });
 
-	const proc = Bun.spawn(["sh", "-c", verifyCommand], {
+	// Use bash for better compatibility (POSIX sh lacks pipefail and has subtle
+	// behaviour differences on macOS). set -e + pipefail ensure the first failing
+	// command in a chain sets the exit code correctly.
+	const wrappedCommand = `set -eo pipefail; ${verifyCommand}`;
+	const proc = Bun.spawn(["bash", "-c", wrappedCommand], {
 		cwd: projectPath,
 		stdout: "pipe",
 		stderr: "pipe",
@@ -70,12 +74,16 @@ export async function runVerifyCommand(
 
 	const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
 	const exitCode = await proc.exited;
-	const output = (stdout + stderr).trim();
 
-	if (output) {
-		const outputLog = deps.db.appendTaskLog(taskId, `Verify output:\n${output}`, "system");
-		deps.broadcast({ type: "task_log", log: outputLog });
-	}
+	// Build structured output so the retry agent (and humans) can diagnose failures
+	const parts: string[] = [];
+	if (stdout.trim()) parts.push(`[stdout]\n${stdout.trim()}`);
+	if (stderr.trim()) parts.push(`[stderr]\n${stderr.trim()}`);
+	parts.push(`[exit code] ${exitCode}`);
+	const output = parts.join("\n\n");
+
+	const outputLog = deps.db.appendTaskLog(taskId, `Verify output:\n${output}`, "system");
+	deps.broadcast({ type: "task_log", log: outputLog });
 
 	const success = exitCode === 0;
 	const statusLog = deps.db.appendTaskLog(
