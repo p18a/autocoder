@@ -45,3 +45,9 @@ src/
 ```
 
 The server is the single source of truth. All state lives in SQLite and is broadcast to clients over WebSocket. The orchestrator manages Claude subprocesses, parses streaming output, and drives the discover/execute loop.
+
+## UI
+
+Screenshot of Autocoder working on improving itself
+
+![image](./assets/screenshot.png)
