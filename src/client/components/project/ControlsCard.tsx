@@ -1,5 +1,7 @@
-import { ChevronRight, Pencil } from "lucide-react";
+import { BookOpen, ChevronRight, Pencil } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -15,12 +17,17 @@ import {
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import type { JournalTier } from "../../../shared/types.ts";
+import { sendRequestJournal } from "../../stores/commands.ts";
+import { useJournalStore } from "../../stores/journal.ts";
 
 export type DiscoveryMode = "janitor" | "autopilot";
 
 export interface ControlsCardProps {
+	projectId: string;
 	isStarted: boolean;
 	autoContinue: boolean;
 	discoveryMode: DiscoveryMode;
@@ -133,7 +140,73 @@ function TextEditorDialog({
 	);
 }
 
+const tierVariant: Record<JournalTier, "default" | "secondary" | "outline"> = {
+	recent: "outline",
+	summary: "secondary",
+	historical: "default",
+};
+
+function formatTimestamp(iso: string): string {
+	const date = new Date(iso);
+	const now = new Date();
+	const diffMs = now.getTime() - date.getTime();
+	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+	if (diffDays === 0) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+	if (diffDays === 1) return "yesterday";
+	if (diffDays < 7) return `${diffDays}d ago`;
+	return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function JournalDialog({ projectId }: { projectId: string }) {
+	const entries = useJournalStore(useShallow((s) => s.entries[projectId] ?? []));
+
+	function handleOpen(open: boolean) {
+		if (open) sendRequestJournal(projectId);
+	}
+
+	return (
+		<Dialog onOpenChange={handleOpen}>
+			<DialogTrigger asChild>
+				<Button variant="outline" size="sm" className="w-full justify-start text-muted-foreground font-normal">
+					<BookOpen className="size-3.5" />
+					View dev journal
+					{entries.length > 0 && <span className="ml-auto text-xs tabular-nums">{entries.length}</span>}
+				</Button>
+			</DialogTrigger>
+			<DialogContent className="sm:max-w-2xl sm:max-h-[80vh] flex flex-col overflow-hidden">
+				<DialogHeader>
+					<DialogTitle>Dev journal</DialogTitle>
+					<DialogDescription>
+						Notes recorded by agents — decisions, discoveries, abandoned approaches.
+					</DialogDescription>
+				</DialogHeader>
+				<ScrollArea className="flex-1 min-h-0">
+					{entries.length === 0 ? (
+						<p className="text-sm text-muted-foreground py-4">No journal entries yet.</p>
+					) : (
+						<ul className="space-y-3 pr-3">
+							{entries.map((entry) => (
+								<li key={entry.id} className="space-y-1">
+									<div className="flex items-center gap-2">
+										<Badge variant={tierVariant[entry.tier]} className="text-[10px] px-1.5 py-0">
+											{entry.tier}
+										</Badge>
+										<span className="text-[10px] text-muted-foreground">{formatTimestamp(entry.createdAt)}</span>
+									</div>
+									<p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">{entry.content}</p>
+								</li>
+							))}
+						</ul>
+					)}
+				</ScrollArea>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 export function ControlsCard({
+	projectId,
 	isStarted,
 	autoContinue,
 	discoveryMode,
@@ -225,6 +298,8 @@ export function ControlsCard({
 						addLabel="Add custom instructions"
 					/>
 				)}
+
+				<JournalDialog projectId={projectId} />
 
 				{/* Advanced settings */}
 				<Collapsible>

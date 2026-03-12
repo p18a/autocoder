@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Activity, BookOpen, Clock, ListTodo, Settings } from "lucide-react";
+import { Activity, Clock, ListTodo, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -17,20 +17,18 @@ import { useTasksStore } from "../stores/tasks.ts";
 import { AgentActivityCard } from "./project/AgentActivityCard.tsx";
 import { ControlsCard } from "./project/ControlsCard.tsx";
 import { HistoryCard } from "./project/HistoryCard.tsx";
-import { JournalCard } from "./project/JournalCard.tsx";
 import { QueueCard } from "./project/QueueCard.tsx";
 
 interface ProjectDetailProps {
 	projectId: string;
 }
 
-type MobileTab = "controls" | "queue" | "history" | "journal" | "activity";
+type MobileTab = "controls" | "queue" | "history" | "activity";
 
 const TABS: { id: MobileTab; label: string; icon: typeof Settings }[] = [
 	{ id: "controls", label: "Controls", icon: Settings },
 	{ id: "queue", label: "Queue", icon: ListTodo },
 	{ id: "history", label: "History", icon: Clock },
-	{ id: "journal", label: "Journal", icon: BookOpen },
 	{ id: "activity", label: "Activity", icon: Activity },
 ];
 
@@ -77,6 +75,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 	}
 
 	const controlsProps = {
+		projectId,
 		isStarted,
 		autoContinue,
 		discoveryMode,
@@ -121,13 +120,12 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 				<span className="text-xs text-muted-foreground font-mono truncate">{project.path}</span>
 			</div>
 
-			{/* Desktop: grid layout — left column has 4 equal-height cards, right column spans all rows */}
-			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] grid-rows-4 gap-4 p-4">
+			{/* Desktop: grid layout — left column has 3 equal-height cards, right column spans all rows */}
+			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] grid-rows-3 gap-4 p-4">
 				<ControlsCard {...controlsProps} />
-				<AgentActivityCard task={activeTask} className="row-span-4" />
+				<AgentActivityCard task={activeTask} className="row-span-3" />
 				<QueueCard {...queueProps} />
 				<HistoryCard {...historyProps} />
-				<JournalCard projectId={projectId} />
 			</div>
 
 			{/* Mobile: single tab content + bottom tab bar */}
@@ -136,7 +134,6 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 					{mobileTab === "controls" && <ControlsCard {...controlsProps} />}
 					{mobileTab === "queue" && <QueueCard {...queueProps} className="h-full" />}
 					{mobileTab === "history" && <HistoryCard {...historyProps} className="h-full" />}
-					{mobileTab === "journal" && <JournalCard projectId={projectId} className="h-full" />}
 					{mobileTab === "activity" && <AgentActivityCard task={activeTask} className="h-full" />}
 				</div>
 
