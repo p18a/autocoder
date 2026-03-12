@@ -14,6 +14,7 @@ Guidelines:
 - After making changes, verify correctness: run the project's test suite or type checker if available.
 - If the project has a CLAUDE.md or similar instructions file, follow its conventions.
 - Do not introduce new dependencies unless the task specifically requires it.
+- Do NOT run git commit, git add, or any git commands. Commits are handled automatically after your changes are verified.
 
 Dev Journal:
 Use the write_journal MCP tool to record discoveries that future tasks should know about. Good things to record:
