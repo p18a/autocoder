@@ -22,14 +22,6 @@ import {
 	listTasks,
 	updateTask,
 } from "../server/db/tasks.ts";
-import type { ServerMessage } from "../shared/types.ts";
-
-/** Optional broadcast hook — set by the main server to push real-time updates to WS clients. */
-let broadcastHook: ((msg: ServerMessage) => void) | null = null;
-
-export function setBroadcastHook(fn: (msg: ServerMessage) => void) {
-	broadcastHook = fn;
-}
 
 const server = new McpServer({
 	name: "autocoder",
@@ -74,11 +66,11 @@ server.tool(
 		// Enforce per-cycle cap
 		const maxIssues = mode === "autopilot" ? MAX_AUTOPILOT_ISSUES : MAX_DISCOVERY_ISSUES;
 		const existing = [...getQueuedTasksByProject(projectId), ...getRunningTasksByProject(projectId)];
-		// Count only tasks from the same origin (same discovery cycle)
-		const fromSameOrigin = originTaskId
+		// Count tasks from the same discovery cycle (or all tasks if no origin specified)
+		const cycleTaskCount = originTaskId
 			? existing.filter((t) => t.originTaskId === originTaskId).length
 			: existing.length;
-		if (fromSameOrigin >= maxIssues) {
+		if (cycleTaskCount >= maxIssues) {
 			return {
 				content: [
 					{
@@ -99,7 +91,6 @@ server.tool(
 		}
 
 		const task = createTask(projectId, prompt, "execution", originTaskId ?? null, title);
-		broadcastHook?.({ type: "task_added", task });
 		return {
 			content: [{ type: "text", text: `Task created: ${task.id} — ${title}` }],
 		};

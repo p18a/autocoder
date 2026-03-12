@@ -1,4 +1,3 @@
-import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Subprocess } from "bun";
 import type { TaskType } from "../../shared/types.ts";
@@ -164,7 +163,7 @@ function getMcpServerPath(): string {
 let _mcpConfigPath: string | null = null;
 
 /** Get or create the MCP config JSON file for Claude subprocesses. */
-export function getMcpConfigPath(): string {
+export async function getMcpConfigPath(): Promise<string> {
 	if (_mcpConfigPath) return _mcpConfigPath;
 
 	const tmpDir = process.env.TMPDIR ?? "/tmp";
@@ -180,8 +179,7 @@ export function getMcpConfigPath(): string {
 		},
 	};
 
-	// Synchronous write to ensure config exists before spawning Claude
-	writeFileSync(configPath, JSON.stringify(config, null, 2));
+	await Bun.write(configPath, JSON.stringify(config, null, 2));
 	log.info("orchestrator", `MCP config written to ${configPath} (server: ${mcpServerPath})`);
 	_mcpConfigPath = configPath;
 	return configPath;
@@ -226,7 +224,7 @@ export async function executeTask(
 
 	const effectivePrompt = taskType === "execution" ? buildExecutionPrompt(prompt, verifyCommand) : prompt;
 
-	const mcpConfig = getMcpConfigPath();
+	const mcpConfig = await getMcpConfigPath();
 
 	const args = [
 		"claude",

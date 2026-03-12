@@ -237,11 +237,16 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 							deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", "0");
 						} else {
 							// Agent finished but created no tasks — could be legitimate (no issues found)
-							// or a failure (MCP connection issue, agent didn't use the tool)
-							const infoLog = deps.db.appendTaskLog(task.id, "Discovery completed: no tasks were created", "system");
+							// or a failure (MCP connection issue, agent didn't use the tool).
+							// Increment fail streak so the circuit breaker trips if this keeps happening.
+							const streak = Number(deps.db.getProjectConfig(task.projectId, "discovery_fail_streak") ?? "0");
+							deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", String(streak + 1));
+							const infoLog = deps.db.appendTaskLog(
+								task.id,
+								`Discovery completed but created no tasks (streak: ${streak + 1}/${MAX_DISCOVERY_FAILS})`,
+								"system",
+							);
 							deps.broadcast({ type: "task_log", log: infoLog });
-							// Don't increment fail streak — agent ran successfully, just found nothing
-							deps.db.setProjectConfig(task.projectId, "discovery_fail_streak", "0");
 						}
 					} else if (verifyCommand && project) {
 						// Execution task with verify command
