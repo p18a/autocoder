@@ -75,11 +75,11 @@ export async function runVerifyCommand(
 	const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
 	const exitCode = await proc.exited;
 
-	// Build structured output so the retry agent (and humans) can diagnose failures
-	const parts: string[] = [];
+	// Build structured output so the retry agent (and humans) can diagnose failures.
+	// Exit code goes first so it survives log truncation (MAX_LOG_CONTENT_LENGTH).
+	const parts: string[] = [`[exit code] ${exitCode}`];
 	if (stdout.trim()) parts.push(`[stdout]\n${stdout.trim()}`);
 	if (stderr.trim()) parts.push(`[stderr]\n${stderr.trim()}`);
-	parts.push(`[exit code] ${exitCode}`);
 	const output = parts.join("\n\n");
 
 	const outputLog = deps.db.appendTaskLog(taskId, `Verify output:\n${output}`, "system");

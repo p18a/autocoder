@@ -113,14 +113,14 @@ describe("runVerifyCommand", () => {
 		expect(result.success).toBe(false);
 	});
 
-	test("captures structured output with stdout/stderr labels", async () => {
+	test("captures structured output with exit code first to survive truncation", async () => {
 		tempDir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "verify-"));
 		const deps = createMockDeps();
 		const result = await runVerifyCommand(tempDir, "echo 'hello world'", "t1", deps);
 		expect(result.success).toBe(true);
+		expect(result.output).toStartWith("[exit code] 0");
 		expect(result.output).toContain("[stdout]");
 		expect(result.output).toContain("hello world");
-		expect(result.output).toContain("[exit code] 0");
 	});
 
 	test("includes exit code in failure output", async () => {

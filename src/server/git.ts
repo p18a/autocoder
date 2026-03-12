@@ -53,12 +53,6 @@ export async function gitRevertToCheckpoint(projectPath: string, checkpointSha: 
  * Check whether the working tree has uncommitted changes.
  */
 export async function gitHasChanges(projectPath: string): Promise<boolean> {
-	const proc = Bun.spawn(["git", "status", "--porcelain"], {
-		cwd: projectPath,
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-	const output = await new Response(proc.stdout).text();
-	await proc.exited;
-	return output.trim().length > 0;
+	const output = await run(projectPath, ["status", "--porcelain"]);
+	return output.length > 0;
 }

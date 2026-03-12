@@ -59,6 +59,12 @@ describe("gitHasChanges", () => {
 		fs.unlinkSync(path.join(dir, "readme.txt"));
 		expect(await gitHasChanges(dir)).toBe(true);
 	});
+
+	test("throws when path is not a git repo", async () => {
+		const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "git-test-"));
+		tempDirs.push(dir);
+		await expect(gitHasChanges(dir)).rejects.toThrow("git status failed");
+	});
 });
 
 describe("gitAutoCommit", () => {
