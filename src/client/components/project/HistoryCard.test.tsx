@@ -110,7 +110,7 @@ describe("HistoryCard", () => {
 			.filter((btn) => btn.className.includes("hover:text-destructive"));
 		expect(removeButtons.length).toBeGreaterThan(0);
 		const btn = removeButtons[0];
-		expect(btn).toBeTruthy();
+		if (!btn) throw new Error("Remove button not found");
 		fireEvent.click(btn);
 
 		expect(onRemove).toHaveBeenCalledWith("t1");

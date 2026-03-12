@@ -83,13 +83,13 @@ describe("journal commands", () => {
 	test("sendRequestJournal sends get_journal message", () => {
 		sendRequestJournal("p1");
 		expect(sendMock).toHaveBeenCalledTimes(1);
-		const msg = JSON.parse(sendMock.mock.calls[0]![0]);
+		const msg = JSON.parse(sendMock.mock.calls[0]?.[0] ?? "");
 		expect(msg).toEqual({ type: "get_journal", projectId: "p1" });
 	});
 
 	test("sendRequestJournal includes tier and limit when provided", () => {
 		sendRequestJournal("p1", "summary", 5);
-		const msg = JSON.parse(sendMock.mock.calls[0]![0]);
+		const msg = JSON.parse(sendMock.mock.calls[0]?.[0] ?? "");
 		expect(msg).toEqual({ type: "get_journal", projectId: "p1", tier: "summary", limit: 5 });
 	});
 });

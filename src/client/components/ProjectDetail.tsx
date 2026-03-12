@@ -121,7 +121,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 			</div>
 
 			{/* Desktop: grid layout — left column has 3 equal-height cards, right column spans all rows */}
-			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] grid-rows-3 gap-4 p-4">
+			<div className="hidden lg:grid flex-1 overflow-hidden grid-cols-[2fr_3fr] grid-rows-[auto_auto_1fr] gap-4 p-4">
 				<ControlsCard {...controlsProps} />
 				<AgentActivityCard task={activeTask} className="row-span-3" />
 				<QueueCard {...queueProps} />
