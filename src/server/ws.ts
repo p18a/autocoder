@@ -4,7 +4,7 @@ import type { ClientMessage, ServerMessage } from "../shared/types.ts";
 import { WS_MAX_MESSAGE_SIZE, WS_RATE_LIMIT_MAX, WS_RATE_LIMIT_WINDOW_MS } from "./constants.ts";
 import * as db from "./db/index.ts";
 import { handleSetConfig } from "./handlers/config.ts";
-import { handleGetServerLogs, handleGetTaskLogs } from "./handlers/logs.ts";
+import { handleGetJournal, handleGetServerLogs, handleGetTaskLogs } from "./handlers/logs.ts";
 import { handleCreateProject, handleDeleteProject, handleStartProject, handleStopProject } from "./handlers/project.ts";
 import { handleAddTask, handleCancelTask, handleRemoveTask, handleRetryTask } from "./handlers/task.ts";
 import type { HandlerMap } from "./handlers/types.ts";
@@ -85,6 +85,7 @@ const handlers: HandlerMap = {
 	get_task_logs: handleGetTaskLogs,
 	set_config: handleSetConfig,
 	get_server_logs: handleGetServerLogs,
+	get_journal: handleGetJournal,
 };
 
 async function handleMessage(ws: ServerWebSocket<WSData>, raw: string) {
@@ -148,6 +149,8 @@ export async function dispatch(ws: ServerWebSocket<WSData>, msg: ClientMessage) 
 			return handlers.set_config(ctx, msg);
 		case "get_server_logs":
 			return handlers.get_server_logs(ctx, msg);
+		case "get_journal":
+			return handlers.get_journal(ctx, msg);
 		default: {
 			const _exhaustive: never = msg;
 			throw new Error(`Unknown message type: ${JSON.stringify(_exhaustive)}`);

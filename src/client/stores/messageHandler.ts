@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import type { ServerMessage } from "../../shared/types.ts";
 import { useConfigStore } from "./config.ts";
 import { useConnectionStore } from "./connection.ts";
+import { useJournalStore } from "./journal.ts";
 import { useServerLogsStore } from "./serverLogs.ts";
 import { useProjectsStore } from "./sessions.ts";
 import { useTasksStore } from "./tasks.ts";
@@ -61,6 +62,9 @@ export function handleServerMessage(msg: ServerMessage) {
 			break;
 		case "server_logs":
 			useServerLogsStore.getState().setLogs(msg.logs);
+			break;
+		case "journal_entries":
+			useJournalStore.getState().setEntries(msg.projectId, msg.entries);
 			break;
 		case "error":
 			toast.error(msg.commandId ? `Error (Cmd: ${msg.commandId}): ${msg.message}` : msg.message);

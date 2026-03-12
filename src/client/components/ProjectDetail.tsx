@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Activity, Clock, ListTodo, Settings } from "lucide-react";
+import { Activity, BookOpen, Clock, ListTodo, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -17,18 +17,20 @@ import { useTasksStore } from "../stores/tasks.ts";
 import { AgentActivityCard } from "./project/AgentActivityCard.tsx";
 import { ControlsCard } from "./project/ControlsCard.tsx";
 import { HistoryCard } from "./project/HistoryCard.tsx";
+import { JournalCard } from "./project/JournalCard.tsx";
 import { QueueCard } from "./project/QueueCard.tsx";
 
 interface ProjectDetailProps {
 	projectId: string;
 }
 
-type MobileTab = "controls" | "queue" | "history" | "activity";
+type MobileTab = "controls" | "queue" | "history" | "journal" | "activity";
 
 const TABS: { id: MobileTab; label: string; icon: typeof Settings }[] = [
 	{ id: "controls", label: "Controls", icon: Settings },
 	{ id: "queue", label: "Queue", icon: ListTodo },
 	{ id: "history", label: "History", icon: Clock },
+	{ id: "journal", label: "Journal", icon: BookOpen },
 	{ id: "activity", label: "Activity", icon: Activity },
 ];
 
@@ -125,6 +127,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 					<ControlsCard {...controlsProps} />
 					<QueueCard {...queueProps} />
 					<HistoryCard {...historyProps} />
+					<JournalCard projectId={projectId} />
 				</div>
 				<AgentActivityCard task={activeTask} />
 			</div>
@@ -135,6 +138,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 					{mobileTab === "controls" && <ControlsCard {...controlsProps} />}
 					{mobileTab === "queue" && <QueueCard {...queueProps} className="h-full" />}
 					{mobileTab === "history" && <HistoryCard {...historyProps} className="h-full" />}
+					{mobileTab === "journal" && <JournalCard projectId={projectId} className="h-full" />}
 					{mobileTab === "activity" && <AgentActivityCard task={activeTask} className="h-full" />}
 				</div>
 

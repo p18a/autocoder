@@ -122,4 +122,11 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 		level: logLevelSchema.optional(),
 		commandId: z.string().optional(),
 	}),
+	z.object({
+		type: z.literal("get_journal"),
+		projectId: z.string(),
+		tier: journalTierSchema.optional(),
+		limit: z.number().int().min(1).max(100).optional(),
+		commandId: z.string().optional(),
+	}),
 ]);

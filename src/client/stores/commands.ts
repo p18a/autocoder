@@ -50,6 +50,14 @@ export function sendUpdateConfig(key: string, value: string): void {
 	send(JSON.stringify({ type: "set_config", key, value }));
 }
 
+// Journal commands
+export function sendRequestJournal(projectId: string, tier?: string, limit?: number): void {
+	const msg: Record<string, unknown> = { type: "get_journal", projectId };
+	if (tier) msg.tier = tier;
+	if (limit) msg.limit = limit;
+	send(JSON.stringify(msg));
+}
+
 // Server log commands
 export function sendRequestServerLogs(limit = 200, level?: string): void {
 	const msg: Record<string, unknown> = { type: "get_server_logs", limit };

@@ -77,6 +77,7 @@ export type ClientMessage = (
 	| { type: "start_project"; projectId: string; mode: "discover" | "execute" }
 	| { type: "stop_project"; projectId: string }
 	| { type: "get_server_logs"; limit?: number; level?: LogLevel }
+	| { type: "get_journal"; projectId: string; tier?: JournalTier; limit?: number }
 ) & { commandId?: string };
 
 // Server → Client
@@ -93,4 +94,5 @@ export type ServerMessage =
 	| { type: "error"; message: string; commandId?: string }
 	| { type: "ack"; commandId: string }
 	| { type: "server_log"; log: ServerLog }
-	| { type: "server_logs"; logs: ServerLog[] };
+	| { type: "server_logs"; logs: ServerLog[] }
+	| { type: "journal_entries"; projectId: string; entries: JournalEntry[] };
