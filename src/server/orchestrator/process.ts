@@ -63,11 +63,8 @@ export async function runVerifyCommand(
 	const verifyLog = deps.db.appendTaskLog(taskId, `Running verify command: ${verifyCommand}`, "system");
 	deps.broadcast({ type: "task_log", log: verifyLog });
 
-	// Use bash for better compatibility (POSIX sh lacks pipefail and has subtle
-	// behaviour differences on macOS). set -e + pipefail ensure the first failing
-	// command in a chain sets the exit code correctly.
-	const wrappedCommand = `set -eo pipefail; ${verifyCommand}`;
-	const proc = Bun.spawn(["bash", "-c", wrappedCommand], {
+	// Use bash instead of sh for better compatibility on macOS
+	const proc = Bun.spawn(["bash", "-c", verifyCommand], {
 		cwd: projectPath,
 		stdout: "pipe",
 		stderr: "pipe",
