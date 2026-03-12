@@ -47,6 +47,17 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 		return deps.db.getProjectConfig(projectId, "started") === "true";
 	}
 
+	/** Revert working tree to a checkpoint SHA after cancellation or failure. */
+	async function revertToCheckpoint(checkpoint: string, projectPath: string, taskId: string) {
+		try {
+			const revertLog = deps.db.appendTaskLog(taskId, "Reverting to checkpoint after cancellation", "system");
+			deps.broadcast({ type: "task_log", log: revertLog });
+			await gitRevertToCheckpoint(projectPath, checkpoint);
+		} catch (err) {
+			log.error("orchestrator", `Failed to revert: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
 	async function handleAutoContinue(): Promise<boolean> {
 		const allProjects = deps.db.listProjects();
 		let seeded = false;
@@ -154,6 +165,9 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 				const verifyCommand = discovery ? "" : (deps.db.getProjectConfig(task.projectId, "verify_command") ?? "");
 				const project = deps.db.getProject(task.projectId);
 
+				// Declare checkpoint outside try so it's accessible in the catch block for revert
+				let checkpoint: string | null = null;
+
 				try {
 					// Refuse to start if the project repo has uncommitted or untracked changes
 					if (project) {
@@ -178,7 +192,6 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 					}
 
 					// Save checkpoint before execution tasks
-					let checkpoint: string | null = null;
 					if (!discovery && project) {
 						try {
 							checkpoint = await gitSaveCheckpoint(project.path);
@@ -207,7 +220,9 @@ export function createQueueProcessor(deps: OrchestratorDeps): QueueProcessor {
 					// Re-read task — stopProject may have already marked it cancelled
 					const afterExec = deps.db.getTask(task.id);
 					if (afterExec?.status === "cancelled") {
-						// stopProject already handled it, nothing to do
+						if (checkpoint && project) {
+							await revertToCheckpoint(checkpoint, project.path, task.id);
+						}
 						continue;
 					}
 
@@ -275,7 +290,12 @@ Original task: ${task.prompt}`;
 
 							// Re-check cancellation after retry
 							const afterRetry = deps.db.getTask(task.id);
-							if (afterRetry?.status === "cancelled") continue;
+							if (afterRetry?.status === "cancelled") {
+								if (checkpoint) {
+									await revertToCheckpoint(checkpoint, project.path, task.id);
+								}
+								continue;
+							}
 
 							const retryVerify = await runVerifyCommand(project.path, verifyCommand, task.id, deps);
 
@@ -316,6 +336,9 @@ Original task: ${task.prompt}`;
 							"orchestrator",
 							`Task ${task.id} already ${beforeComplete?.status ?? "gone"}, skipping completion`,
 						);
+						if (checkpoint && project) {
+							await revertToCheckpoint(checkpoint, project.path, task.id);
+						}
 						continue;
 					}
 
@@ -332,6 +355,11 @@ Original task: ${task.prompt}`;
 						});
 					}
 				} catch (err) {
+					// Revert to checkpoint on any failure for execution tasks
+					if (checkpoint && project) {
+						await revertToCheckpoint(checkpoint, project.path, task.id);
+					}
+
 					// Re-read task — if already cancelled/failed externally, don't mark failed
 					const afterExec = deps.db.getTask(task.id);
 					if (afterExec?.status !== "running") continue;

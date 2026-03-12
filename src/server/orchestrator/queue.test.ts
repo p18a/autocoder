@@ -3,11 +3,23 @@ import type { Config, Task, TaskLog, TaskStatus, TaskType } from "../../shared/t
 import type { OrchestratorDeps } from "./deps.ts";
 
 const mockGitHasChanges = mock(() => Promise.resolve(false));
+const mockGitRevertToCheckpoint = mock(() => Promise.resolve());
 mock.module("../git.ts", () => ({
 	gitHasChanges: mockGitHasChanges,
 	gitAutoCommit: mock(() => Promise.resolve(null)),
 	gitSaveCheckpoint: mock(() => Promise.resolve("abc123")),
-	gitRevertToCheckpoint: mock(() => Promise.resolve()),
+	gitRevertToCheckpoint: mockGitRevertToCheckpoint,
+}));
+
+const mockExecuteTask = mock(() => Promise.resolve("done"));
+mock.module("./process.ts", () => ({
+	executeTask: mockExecuteTask,
+	parseCommitSummary: mock(() => Promise.resolve("chore: test")),
+	runVerifyCommand: mock(() => Promise.resolve({ success: true, output: "" })),
+	buildExecutionPrompt: mock((prompt: string) => prompt),
+	buildClaudeEnv: mock(() => ({})),
+	getMcpConfigPath: mock(() => Promise.resolve("/tmp/mcp.json")),
+	activeProcesses: new Map(),
 }));
 
 // Must import after mock.module
@@ -57,6 +69,10 @@ describe("createQueueProcessor", () => {
 	afterEach(() => {
 		mockGitHasChanges.mockReset();
 		mockGitHasChanges.mockImplementation(() => Promise.resolve(false));
+		mockGitRevertToCheckpoint.mockReset();
+		mockGitRevertToCheckpoint.mockImplementation(() => Promise.resolve());
+		mockExecuteTask.mockReset();
+		mockExecuteTask.mockImplementation(() => Promise.resolve("done"));
 	});
 
 	test("isProcessing returns false initially", () => {
@@ -232,5 +248,43 @@ describe("createQueueProcessor", () => {
 		const updateCalls = (deps.db.updateTask as ReturnType<typeof mock>).mock.calls;
 		const failedCall = updateCalls.find((call: unknown[]) => call[0] === "t1" && call[1] === "failed");
 		expect(failedCall).toBeDefined();
+	});
+
+	test("reverts to checkpoint when execution task is cancelled", async () => {
+		const task = {
+			id: "t1",
+			projectId: "p1",
+			prompt: "test",
+			status: "queued" as TaskStatus,
+			taskType: "execution" as const,
+			originTaskId: null,
+			title: null,
+			createdAt: "",
+			updatedAt: "",
+		} as Task;
+
+		let getQueuedCallCount = 0;
+		const deps = createMockDeps({
+			getQueuedTasks: mock(() => {
+				getQueuedCallCount++;
+				return getQueuedCallCount === 1 ? [task] : [];
+			}),
+			getProjectConfig: mock((_pid: string, key: string) => {
+				if (key === "started") return "true";
+				return null;
+			}),
+			updateTask: mock((id: string, status: TaskStatus) => ({ ...task, id, status }) as Task),
+			// After executeTask returns, getTask is called to check cancellation.
+			// Return "cancelled" to simulate stopProject having killed + cancelled this task.
+			getTask: mock(() => ({ ...task, status: "cancelled" as TaskStatus })),
+		});
+
+		const qp = createQueueProcessor(deps);
+		qp.processQueue();
+
+		await new Promise((r) => setTimeout(r, 50));
+
+		expect(qp.isProcessing()).toBe(false);
+		expect(mockGitRevertToCheckpoint).toHaveBeenCalledWith("/tmp", "abc123");
 	});
 });
